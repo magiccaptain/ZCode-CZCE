@@ -1,4 +1,6 @@
-import armsRum from "@arms/rum-electron";
+/* oxlint-disable eslint(max-lines) -- 数据量 scheduler 与状态恢复是同一 owner；保持产品 guard 与既有时序在同一文件。 */
+import { DESKTOP_PRODUCT_CAPABILITIES } from "./productCapabilities.js";
+import { getDesktopArmsRum } from "./desktopArmsRum.js";
 import type { ArmsRumEnv, FinalArmsCustomEventPayload } from "@zcode/shared";
 
 import type { ZCodeDataSizeScanResult } from "./zcodeDataSizeScanner.js";
@@ -401,6 +403,7 @@ export function registerDesktopZCodeDataSizeTelemetry(options: {
   rootPath: string;
   stateFile: string;
 }): void {
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
   stopDesktopZCodeDataSizeTelemetry();
   desktopScheduler = createZCodeDataSizeTelemetryScheduler({
     deviceMid: options.context.deviceMid,
@@ -411,7 +414,7 @@ export function registerDesktopZCodeDataSizeTelemetry(options: {
     readState: () => readZCodeDataSizeTelemetryState(options.stateFile),
     report: (result) => {
       const payload = buildZCodeDataSizeArmsPayload({ context: options.context, result });
-      armsRum.sendCustom({
+      getDesktopArmsRum().sendCustom({
         group: payload.group,
         name: payload.name,
         properties: payload.properties,

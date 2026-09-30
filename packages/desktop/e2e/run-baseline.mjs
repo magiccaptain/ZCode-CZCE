@@ -2,6 +2,7 @@ import { prepareExtensions } from "./extensions.mjs";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { createTelemetryFixture } from "./telemetry-fixture.mjs";
 import { access, chmod, copyFile, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -29,6 +30,7 @@ import {
   desktopRoot,
   launchBaseline,
   enterBaselineUI,
+  prepareBaselineLocale,
   redact,
   repositoryRoot,
   waitFor,
@@ -44,6 +46,7 @@ const { values } = parseArgs({
   options: {
     "key-file": { type: "string" },
     extensions: { type: "boolean", default: false },
+    telemetry: { type: "boolean", default: false },
   },
 });
 assert(values["key-file"], "Pass --key-file pointing to a private file outside the repository");
@@ -66,6 +69,7 @@ const workspace = join(runRoot, "workspace");
 const artifacts = join(desktopRoot, ".e2e-artifacts", id);
 await mkdir(workspace);
 await mkdir(artifacts, { recursive: true, mode: 0o700 });
+await prepareBaselineLocale(runRoot);
 await copyFile(join(import.meta.dirname, "gated-tool.mjs"), join(workspace, "gated-tool.mjs"));
 const rootPackage = JSON.parse(await readFile(join(repositoryRoot, "package.json"), "utf8"));
 const { stdout: commit } = await execute("git", ["rev-parse", "HEAD"], { cwd: repositoryRoot });
@@ -89,9 +93,8 @@ const report = {
   sessionId: null,
   stages: [],
   passed: false,
-  scope: values.extensions
-    ? "local core plus user/workspace Skills and stdio/authenticated HTTP MCP; no cross-Host/mobile/installed package coverage"
-    : "local core; no update shutdown, cross-Host/mobile/Skills/MCP/installed package coverage",
+  scope: values.extensions ? "local core + Skills/MCP" : "local core",
+  unverified: ["cross-Host", "mobile", "installed package"],
 };
 let app;
 let page;
@@ -99,6 +102,8 @@ let credentialInputActive = false;
 const extensions = values.extensions
   ? await prepareExtensions({ runRoot, workspace, marker })
   : null;
+
+const telemetry = values.telemetry ? await createTelemetryFixture(runRoot) : null;
 
 async function persistReport() {
   await writeFile(join(artifacts, "report.json"), redact(JSON.stringify(report, null, 2), key));
@@ -141,7 +146,7 @@ async function start() {
     key,
     log,
     version: rootPackage.version,
-    envPatch: extensions ? { HOME: runRoot } : {},
+    envPatch: { ...(extensions ? { HOME: runRoot } : {}), ...telemetry?.env },
   }));
 }
 
@@ -206,6 +211,7 @@ try {
   await stage("startup", async () => {
     await start();
     await enterBaselineUI(page);
+    await telemetry?.assertRenderer(page);
     return { accountLogin: false, normalDesktopUI: true };
   });
   await stage("provider", async () => {
@@ -364,6 +370,7 @@ try {
     });
   }
   await stage("shutdown", async () => {
+    await telemetry?.assertRenderer(page);
     const exit = await closeBaseline(app);
     app = undefined;
     page = undefined;
@@ -381,6 +388,7 @@ try {
     await stage("extensions-persistence", () =>
       extensions.verify(join(runRoot, "agent-storage/session.sqlite"), report.extensionsSessionId),
     );
+  if (telemetry) await stage("telemetry-disabled", () => telemetry.verify(log));
   report.passed = true;
 } catch (error) {
   console.error(`[baseline] FAILED: ${redact(error.message, key)}`);
@@ -396,6 +404,7 @@ try {
     }
   }
   if (extensions) await extensions.close();
+  await telemetry?.close();
   report.finishedAt = new Date().toISOString();
   await persistReport();
   console.log(

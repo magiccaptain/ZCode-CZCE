@@ -1,5 +1,10 @@
+import { DESKTOP_PRODUCT_CAPABILITIES } from "./productCapabilities.js";
 import { BrowserWindow, ipcMain } from "electron";
-import { PlatformChannels, type RendererActionTraceConfigV1 } from "@zcode/shared";
+import {
+  DISABLED_RENDERER_ACTION_TRACE_CONFIG,
+  PlatformChannels,
+  type RendererActionTraceConfigV1,
+} from "@zcode/shared";
 import type { RendererActionTraceBroker } from "./rendererActionTraceBroker.js";
 import type { RendererActionTraceRollout } from "./rendererActionTraceRollout.js";
 
@@ -14,6 +19,14 @@ export function registerRendererActionTraceIpc(options: {
     warn(...args: unknown[]): void;
   };
 }): () => void {
+  // 产品能力必须先于环境、旧配置和遥测副作用裁决。
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) {
+    ipcMain.handle(
+      PlatformChannels.GetRendererActionTraceConfig,
+      () => DISABLED_RENDERER_ACTION_TRACE_CONFIG,
+    );
+    return () => ipcMain.removeHandler(PlatformChannels.GetRendererActionTraceConfig);
+  }
   type RendererInstanceBinding = {
     current?: string;
     stale: Set<string>;

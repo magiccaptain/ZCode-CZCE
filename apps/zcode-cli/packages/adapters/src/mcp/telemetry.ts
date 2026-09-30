@@ -109,65 +109,14 @@ export function createMcpTelemetryTracker(
   const platform = options.platform ?? (process.platform as ZCodeMcpTelemetryEvent["platform"]);
   const randomId = options.randomId ?? randomUUID;
   const connections = new Map<string, TrackedConnection>();
-  const emit = (event: McpTelemetryEvent): void => {
-    try {
-      options.onEvent(event);
-    } catch {
-      // 遥测为旁路，下游通知或 IPC 关闭不得改变 MCP 连接、回收或 crash 处理。
-    }
-  };
-
+  // 根因：禁用 Host 通知不阻止 tracker 发产品事件；Fork 不注册 sink、观测回调或探针。
+  // process/owner 记录仍是本地资源管理器与连接生命周期的派生视图。
   const resourceTelemetry = createMcpResourceTelemetry({
     ...options,
     arch,
     platform,
     now,
-    getProcesses: () =>
-      [...connections.values()].flatMap((connection) => {
-        const trackedProcess = connection.process;
-        if (!trackedProcess) return [];
-        return [
-          {
-            ...trackedProcess,
-            mcpId: connection.mcpId,
-            isCurrent: () =>
-              connections.get(connection.connectionId) === connection &&
-              connection.process === trackedProcess,
-            observed(samples, sampledAt, memoryScope) {
-              if (!samples) {
-                if (connection.owners.size === 0) {
-                  connection.process = undefined;
-                  connections.delete(connection.connectionId);
-                }
-                return;
-              }
-              const sessionIds = new Set(
-                [...connection.owners.values()].filter((id) => id !== undefined),
-              );
-              const unownedMs =
-                connection.owners.size === 0 && connection.unownedAt !== undefined
-                  ? Math.max(0, sampledAt - connection.unownedAt)
-                  : 0;
-              // 保留 tracker 内部孤儿观测口径；bootstrap 不再把旧 memory 事实发上协议。
-              emit({
-                arch,
-                kind: "memory",
-                mcpId: connection.mcpId,
-                mcpInstanceId: trackedProcess.instanceId,
-                mcpIsolation: connection.isolation,
-                mcpSource: connection.mcpSource,
-                platform,
-                occurredAt: sampledAt,
-                memoryKb: samples.reduce((total, sample) => total + sample.rssKb, 0),
-                memoryScope,
-                orphanSuspected: connection.owners.size === 0 && unownedMs > 60_000,
-                ownerSessionCount: sessionIds.size,
-                unownedSeconds: unownedMs / 1_000,
-              });
-            },
-          },
-        ];
-      }),
+    getProcesses: () => [],
   });
 
   return {
@@ -182,26 +131,7 @@ export function createMcpTelemetryTracker(
       const trackedProcess = connection?.process;
       if (!connection || !trackedProcess) return;
       connection.process = undefined;
-      const occurredAt = now();
-      const sessionIds = new Set(
-        [...connection.owners.values()].filter(
-          (sessionId): sessionId is string => sessionId !== undefined,
-        ),
-      );
-      emit({
-        affectedSessionCount: sessionIds.size,
-        arch,
-        exitCode: input.exitCode,
-        kind: "process_crash",
-        mcpId: connection.mcpId,
-        mcpInstanceId: trackedProcess.instanceId,
-        mcpIsolation: connection.isolation,
-        mcpSource: connection.mcpSource,
-        occurredAt,
-        platform,
-        signal: input.signal,
-        uptimeMs: Math.max(0, occurredAt - trackedProcess.startedAt),
-      });
+      // crash 只更新本地存活列表，不构造产品 crash 遥测。
     },
     recordProcessClosed(input) {
       const connection = connections.get(input.connectionId);
@@ -220,31 +150,10 @@ export function createMcpTelemetryTracker(
         startedAt: occurredAt,
       };
       if (connection.owners.size === 0) connection.unownedAt ??= occurredAt;
-      emit({
-        arch,
-        kind: "process_start",
-        mcpId: connection.mcpId,
-        mcpInstanceId,
-        mcpIsolation: connection.isolation,
-        mcpSource: connection.mcpSource,
-        occurredAt,
-        platform,
-      });
+
       return { mcpId: connection.mcpId, mcpInstanceId };
     },
-    recordSessionStartup(input) {
-      emit({
-        arch,
-        configuredCount: input.configuredCount,
-        connectedCount: input.connectedCount,
-        failedCount: input.failedCount,
-        kind: "session_startup",
-        occurredAt: now(),
-        platform,
-        processCount: input.processCount,
-        sessionId: input.sessionId,
-      });
-    },
+    recordSessionStartup(_input) {},
     releaseOwner(input) {
       const connection = connections.get(input.connectionId);
       if (!connection || !connection.owners.delete(input.ownerId)) return;

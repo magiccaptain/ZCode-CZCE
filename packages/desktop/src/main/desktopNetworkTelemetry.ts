@@ -1,5 +1,6 @@
+import { DESKTOP_PRODUCT_CAPABILITIES } from "./productCapabilities.js";
 /* eslint-disable max-lines -- 网络指标采集/聚合/ARMS 上报 */
-import armsRum from "@arms/rum-electron";
+import { getDesktopArmsRum } from "./desktopArmsRum.js";
 import { mapZCodeEnvToArmsRumEnv } from "@zcode/shared";
 import type { NetworkObservation } from "@zcode/rpc";
 import {
@@ -71,7 +72,7 @@ function reportNetworkCustom(
   });
 
   try {
-    armsRum.sendCustom({
+    getDesktopArmsRum().sendCustom({
       name,
       type: "custom",
       group: "network",
@@ -140,8 +141,10 @@ export function ingestHostNetworkObservations(observations: NetworkObservation[]
 }
 
 export function configureDesktopNetworkTelemetry(context: NetworkGlobalContext): void {
+  // 产品能力必须先于环境、旧配置和遥测副作用裁决。
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
   globalContext = context;
-  armsRum.setConfig("properties", {
+  getDesktopArmsRum().setConfig("properties", {
     device_mid: context.deviceMid,
     platform: normalizeOsCategory(context.platform),
     app_version: context.appVersion,
@@ -150,6 +153,7 @@ export function configureDesktopNetworkTelemetry(context: NetworkGlobalContext):
 }
 
 export function registerDesktopNetworkTelemetry(logger: NetworkLogger): void {
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
   stopDesktopNetworkTelemetry();
   resetNetworkTelemetryAggregator();
 

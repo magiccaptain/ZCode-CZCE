@@ -1,4 +1,4 @@
-import type { ArmsCustomEventPayload } from "@zcode/shared";
+import type { ArmsCustomEventPayload, ProductCapabilities } from "@zcode/shared";
 import { logger } from "@/logger.js";
 
 const SESSION_OPEN_ARMS_GROUP = "ui_perf";
@@ -20,6 +20,7 @@ type SessionOpenProcessState = "spawned" | "reused";
 type SessionOpenRuntimeState = "cold" | "warm";
 
 export interface SessionOpenArmsReporter {
+  productCapabilities?: ProductCapabilities;
   reportArmsCustomEvent(payload: ArmsCustomEventPayload): Promise<unknown>;
 }
 
@@ -66,7 +67,7 @@ interface SessionOpenResultFields extends SessionOpenTimingFields {
 let reporter: SessionOpenArmsReporter | null = null;
 
 export function setSessionOpenArmsReporter(next: SessionOpenArmsReporter | null): void {
-  reporter = next;
+  reporter = next?.productCapabilities?.telemetry === false ? null : next;
 }
 
 function roundedNonNegative(value: number | undefined): number | undefined {
@@ -83,7 +84,7 @@ function emit(
   payload: ArmsCustomEventPayload,
   targetReporter: SessionOpenArmsReporter | null | undefined = reporter,
 ): void {
-  if (!targetReporter) return;
+  if (!targetReporter || targetReporter.productCapabilities?.telemetry === false) return;
   try {
     void Promise.resolve(targetReporter.reportArmsCustomEvent(payload)).catch((error) => {
       logger.warn("[session-open] ARMS 上报失败", { name: payload.name, error });

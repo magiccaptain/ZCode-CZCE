@@ -1,3 +1,4 @@
+import { DESKTOP_PRODUCT_CAPABILITIES } from "./productCapabilities.js";
 /**
  * 主窗口 renderer heap 的样本来源（注册表第四行）。
  *
@@ -39,6 +40,7 @@ function ingestRendererHeapSample(webContentsId: number, raw: unknown): void {
 
 /** preload 桥的 main 侧落点：只监听单向 send，不提供 invoke。 */
 export function registerRendererHeapSampleIpc(): void {
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
   // 这条通道只允许一个监听器：重复注册不叠加，避免同一条样本被摄入多次。
   ipcMain.removeAllListeners(PlatformChannels.ReportRendererHeapSample);
   ipcMain.on(PlatformChannels.ReportRendererHeapSample, (event, payload: unknown) => {

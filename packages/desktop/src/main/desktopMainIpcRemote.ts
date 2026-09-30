@@ -1,6 +1,8 @@
+import { DESKTOP_PRODUCT_CAPABILITIES } from "./productCapabilities.js";
 /* eslint-disable max-lines -- 远程连接、OAuth 回调、遥测和通知 IPC 共用窗口级上下文，集中注册避免跨文件状态漂移。 */
 import { app, BrowserWindow, ipcMain, shell } from "electron";
-import armsRum from "@arms/rum-electron";
+import type armsRum from "@arms/rum-electron";
+import { getDesktopArmsRum } from "./desktopArmsRum.js";
 import {
   armsCustomEventPayloadSchema,
   buildRemoteWorkspaceConnectResultTelemetry,
@@ -209,15 +211,16 @@ export function registerRemoteIpcHandlers(options: {
     }
   }
 
-  const finalArmsCustomEventE2E = options.finalArmsCustomEventE2EEnabled
-    ? enableSharedFinalArmsCustomEventE2EController()
-    : null;
+  const finalArmsCustomEventE2E =
+    DESKTOP_PRODUCT_CAPABILITIES.telemetry && options.finalArmsCustomEventE2EEnabled
+      ? enableSharedFinalArmsCustomEventE2EController()
+      : null;
 
   configureRemoteUsageArmsTelemetry({
     armsCustomContext: options.armsCustomContext,
     getRemoteConnectionStats: options.getRemoteConnectionStats,
     sendCustom: (payload) =>
-      armsRum.sendCustom(payload as Parameters<typeof armsRum.sendCustom>[0]),
+      getDesktopArmsRum().sendCustom(payload as Parameters<typeof armsRum.sendCustom>[0]),
     e2eController: finalArmsCustomEventE2E,
     logger: options.logger,
   });
@@ -319,6 +322,7 @@ export function registerRemoteIpcHandlers(options: {
   });
 
   ipcMain.on(PlatformChannels.SyncTelemetryContext, (event, context) => {
+    if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
     options.appTelemetryRuntime.syncRendererContext({
       rendererId: event.sender.id,
       context,
@@ -326,6 +330,7 @@ export function registerRemoteIpcHandlers(options: {
   });
 
   ipcMain.handle(PlatformChannels.ReportTelemetryEvent, async (_event, payload: unknown) => {
+    if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
     const result = rendererTelemetryEventPayloadSchema.safeParse(payload);
     if (!result.success) {
       options.logger.warn(
@@ -339,6 +344,7 @@ export function registerRemoteIpcHandlers(options: {
   });
 
   ipcMain.handle(PlatformChannels.ReportArmsCustomEvent, async (event, payload: unknown) => {
+    if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
     const result = armsCustomEventPayloadSchema.safeParse(payload);
     if (!result.success) {
       options.logger.warn(
@@ -359,7 +365,7 @@ export function registerRemoteIpcHandlers(options: {
         // FinalArmsCustomEventPayload 是 SDK RumCustomEvent 的收窄子集；SDK 额外要求
         // BaseObject 索引签名，但这里不会动态追加未声明字段。
         sendCustom: (payload) =>
-          armsRum.sendCustom(payload as Parameters<typeof armsRum.sendCustom>[0]),
+          getDesktopArmsRum().sendCustom(payload as Parameters<typeof armsRum.sendCustom>[0]),
       });
     } catch (error) {
       options.logger.warn(

@@ -7,6 +7,7 @@
  * 零外部进程；定时器 unref，不延长进程寿命。
  */
 
+import { DESKTOP_PRODUCT_CAPABILITIES } from "../main/productCapabilities.js";
 import {
   createNodeSelfResourceSampler,
   NODE_SELF_RESOURCE_SAMPLE_INTERVAL_MS,
@@ -36,6 +37,8 @@ export interface SchedulerResourceTelemetry {
 export function startSchedulerResourceTelemetry(
   options: StartSchedulerResourceTelemetryOptions,
 ): SchedulerResourceTelemetry {
+  // 根因：Main 丢弃样本仍会让 scheduler 采集 CPU/heap，必须在 sampler/timer 构造前裁决。
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return { stop() {} };
   const sampler = createNodeSelfResourceSampler(options);
   const readMemoryUsage = options.readMemoryUsage ?? (() => process.memoryUsage());
   const timer = options.timer ?? {

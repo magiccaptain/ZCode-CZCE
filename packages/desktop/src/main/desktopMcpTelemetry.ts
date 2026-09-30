@@ -1,4 +1,5 @@
-import armsRum from "@arms/rum-electron";
+import { DESKTOP_PRODUCT_CAPABILITIES } from "./productCapabilities.js";
+import { getDesktopArmsRum } from "./desktopArmsRum.js";
 import type { ZCodeMcpTelemetryEvent } from "@zcode/shared";
 
 interface DesktopMcpTelemetryContext {
@@ -10,6 +11,8 @@ interface DesktopMcpTelemetryContext {
 let context: DesktopMcpTelemetryContext | undefined;
 
 export function configureDesktopMcpTelemetry(next: DesktopMcpTelemetryContext): void {
+  // 产品能力必须先于环境、旧配置和遥测副作用裁决。
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
   context = next;
 }
 
@@ -21,7 +24,7 @@ export function reportMcpTelemetryToArms(
   if (!context || event.kind === "memory") return;
   const mapped = mapMcpTelemetryEvent(event);
   try {
-    armsRum.sendCustom({
+    getDesktopArmsRum().sendCustom({
       group: mapped.group,
       name: mapped.name,
       properties: stringifyProperties({

@@ -1,7 +1,8 @@
+import { DESKTOP_PRODUCT_CAPABILITIES } from "./productCapabilities.js";
 import { wrapStartupReporterRequest } from "./startupTelemetryDelivery.js";
 import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
-import armsRum from "@arms/rum-electron";
+import { getDesktopArmsRum } from "./desktopArmsRum.js";
 import { ZCODE_AGENT_LIFECYCLE_LOG_MARKER } from "@zcode/shared/process-diagnostic";
 import {
   ZCODE_ARMS_RUM_ENDPOINT,
@@ -150,23 +151,24 @@ const armsRumEnv = mapZCodeEnvToArmsRumEnv(desktopRuntimeEnv);
 // ensureDesktopDeviceMidSync 幂等且不重复写盘）。
 // 注意：渲染进程事件经 ArmsEventBridge 转发到主进程后，由主进程 client 用「主进程 config」
 // 重新打包上报，故只需在主进程 init 设置一次，即可覆盖主进程 + 渲染进程的全部上报。
-const armsDeviceMid = ensureDesktopDeviceMidSync();
 
-// 原因：armsRum.init() 返回 Promise；若不 await，web-contents-created / 渲染进程注入可能晚于首窗 dom-ready，导致零上报。
+// 原因：getDesktopArmsRum().init() 返回 Promise；若不 await，web-contents-created / 渲染进程注入可能晚于首窗 dom-ready，导致零上报。
 // 须在 app.whenReady() 创建 BrowserWindow 之前 await armsInitPromise（见 index.ts）。
 // SDK 的 sendCustom 只表示入队，原 request 不检查 HTTP status。
 // 在 init 通过公开 useReporter 安装时包装传输，保留原 SDK 的过滤和序列化链路。
-const useReporter = armsRum.client.useReporter.bind(armsRum.client);
-armsRum.client.useReporter = (reporter) => {
-  const request = reporter.request.bind(reporter);
-  reporter.request = wrapStartupReporterRequest(request, {
-    acknowledged: (eventIds, delivery) =>
-      logger.info("[database-startup] telemetry delivery", { eventIds, delivery }),
-  });
-  useReporter(reporter);
-};
 function startArmsRum(): Promise<void> {
-  return armsRum
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return Promise.resolve();
+  const armsDeviceMid = ensureDesktopDeviceMidSync();
+  const useReporter = getDesktopArmsRum().client.useReporter.bind(getDesktopArmsRum().client);
+  getDesktopArmsRum().client.useReporter = (reporter) => {
+    const request = reporter.request.bind(reporter);
+    reporter.request = wrapStartupReporterRequest(request, {
+      acknowledged: (eventIds, delivery) =>
+        logger.info("[database-startup] telemetry delivery", { eventIds, delivery }),
+    });
+    useReporter(reporter);
+  };
+  return getDesktopArmsRum()
     .init({
       enable: true,
       version: ZCODE_VERSION,
@@ -265,4 +267,6 @@ function startArmsRum(): Promise<void> {
 
 // 总开关关闭或端点未配置时不初始化 SDK。
 export const armsInitPromise: Promise<void> =
-  ZCODE_TELEMETRY_ENABLED && ZCODE_ARMS_RUM_ENDPOINT ? startArmsRum() : Promise.resolve();
+  DESKTOP_PRODUCT_CAPABILITIES.telemetry && ZCODE_TELEMETRY_ENABLED && ZCODE_ARMS_RUM_ENDPOINT
+    ? startArmsRum()
+    : Promise.resolve();

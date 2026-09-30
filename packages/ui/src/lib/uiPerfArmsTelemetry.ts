@@ -30,12 +30,12 @@ const UI_PERF_EVENT_STREAM_STALL = "perf_ui_stream_stall";
 // 工具后第一个正文 chunk 视为首个,不与工具前的 chunk 比较,避免把工具执行误判为停顿。
 const STREAM_STALL_REPORT_THRESHOLD_MS = 3000;
 
-type ArmsReporter = Pick<IPlatformService, "reportArmsCustomEvent">;
+type ArmsReporter = Pick<IPlatformService, "reportArmsCustomEvent" | "productCapabilities">;
 
 let armsReporter: ArmsReporter | null = null;
 
 export function setUiPerfArmsReporter(reporter: ArmsReporter | null): void {
-  armsReporter = reporter;
+  armsReporter = reporter?.productCapabilities?.telemetry === false ? null : reporter;
 }
 
 /**
@@ -317,6 +317,7 @@ export function recordStreamChunkArrival(
     now?: number;
   },
 ): void {
+  if (!armsReporter) return;
   const now = options?.now ?? Date.now();
   const last = lastChunkAtByTask.get(taskId);
   lastChunkAtByTask.set(taskId, now);

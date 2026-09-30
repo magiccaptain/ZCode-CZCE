@@ -1,4 +1,4 @@
-import type { ArmsCustomEventPayload } from "@zcode/shared";
+import type { ArmsCustomEventPayload, ProductCapabilities } from "@zcode/shared";
 import { shouldExposeE2EStoreBridge } from "@/lib/e2eStoreBridge.js";
 
 interface ArmsCustomEventE2EEntry extends ArmsCustomEventPayload {
@@ -18,11 +18,13 @@ type ArmsCustomEventDebugWindow = Window & {
 export function recordArmsCustomEventForE2E(
   payload: ArmsCustomEventPayload,
   options: {
+    productCapabilities?: Pick<ProductCapabilities, "telemetry">;
     enabled?: boolean;
     host?: ArmsCustomEventDebugWindow;
     now?: () => number;
   } = {},
 ): void {
+  if (options.productCapabilities?.telemetry === false) return;
   const enabled = options.enabled ?? shouldExposeE2EStoreBridge();
   if (!enabled || (typeof window === "undefined" && !options.host)) return;
 

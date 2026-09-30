@@ -1,3 +1,4 @@
+import { DESKTOP_PRODUCT_CAPABILITIES } from "./productCapabilities.js";
 import { ingestToolExecResource } from "./desktopResourceTelemetry.js";
 import { ingestMcpResourceSamples } from "./processResourceMcpTelemetrySource.js";
 /* eslint-disable max-lines -- host process 统一处理 main↔host 生命周期、日志、ZCode Agent，拆分前先保持跨进程消息收口。 */
@@ -319,12 +320,14 @@ export function spawnHostProcess(
     }
 
     if (result.data.type === HostResponseTypes.NetworkTelemetryBatch) {
+      if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
       ingestHostNetworkObservations(result.data.observations);
       return;
     }
 
     // CLI 自采的 60 秒样本：按 services 打的 lane 归入 cli_chat / cli_aux 角色。
     if (result.data.type === HostResponseTypes.AgentResourceSample) {
+      if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
       ingestCliResourceSample(
         result.data.sample,
         result.data.runtimeSurface,
@@ -335,6 +338,7 @@ export function spawnHostProcess(
 
     // Host 自采的 60 秒样本：main 只取 heap 作 host 角色事件的 heap 维度。
     if (result.data.type === HostResponseTypes.HostResourceSample) {
+      if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
       ingestHostSelfResourceSample(result.data.sample);
       return;
     }
@@ -345,11 +349,13 @@ export function spawnHostProcess(
     }
 
     if (result.data.type === HostResponseTypes.ToolExecResource) {
+      if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
       ingestToolExecResource(result.data.sample, result.data.runtimeSurface);
       return;
     }
 
     if (result.data.type === HostResponseTypes.McpResourceSamples) {
+      if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
       ingestMcpResourceSamples(
         result.data.samples,
         result.data.runtimeSurface,
@@ -359,11 +365,13 @@ export function spawnHostProcess(
     }
 
     if (result.data.type === HostResponseTypes.McpTelemetry) {
+      if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
       dependencies.onMcpTelemetry?.(result.data);
       return;
     }
 
     if (result.data.type === HostResponseTypes.SessionCreateTelemetry) {
+      if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
       dependencies.onSessionCreateTelemetry?.(result.data);
       return;
     }
@@ -565,7 +573,6 @@ export function spawnHostProcess(
       });
       return;
     }
-
 
     if (result.data.type === HostResponseTypes.BotRemoteWorkspaceReconnectRequest) {
       const request = result.data;

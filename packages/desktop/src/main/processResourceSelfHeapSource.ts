@@ -1,3 +1,4 @@
+import { DESKTOP_PRODUCT_CAPABILITIES } from "./productCapabilities.js";
 /**
  * host 与 scheduler 自采 heap 的样本来源（注册表第三行）。
  *
@@ -22,6 +23,7 @@ const pendingHeapUsedKb = new Map<ProcessResourceRole, number>();
  * 非法消息（字段缺失、类型错误、夹带多余字段）直接丢弃，不抛错。
  */
 function ingest(role: ProcessResourceRole, raw: unknown): void {
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
   const parsed = nodeSelfResourceSampleSchema.safeParse(raw);
   if (!parsed.success) {
     return;

@@ -1,3 +1,4 @@
+import { DESKTOP_PRODUCT_CAPABILITIES } from "../main/productCapabilities.js";
 import {
   HostResponseTypes,
   resolveWorkspaceTelemetryDetail,
@@ -14,6 +15,8 @@ export function reportHostSessionCreate(
     workspaceIdentity?: string;
   },
 ): void {
+  // 产品能力必须先于环境、旧配置和遥测副作用裁决。
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
   try {
     const locale = Intl.DateTimeFormat().resolvedOptions();
     const event: AutomationSessionCreateTelemetry = {

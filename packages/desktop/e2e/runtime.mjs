@@ -172,6 +172,15 @@ export async function closeBaseline(app) {
   return result;
 }
 
+export async function prepareBaselineLocale(runRoot) {
+  // 系统语言会改变首次引导按钮，固定测试目录语言以匹配基线的英文交互契约。
+  await mkdir(join(runRoot, ".zcode/v2"), { recursive: true });
+  await writeFile(
+    join(runRoot, ".zcode/v2/setting.json"),
+    JSON.stringify({ locale: "en-US", localePreference: "en-US" }),
+  );
+}
+
 export async function enterBaselineUI(page) {
   await page.waitForFunction(
     () =>

@@ -1,6 +1,7 @@
+import { DESKTOP_PRODUCT_CAPABILITIES } from "./productCapabilities.js";
 /* eslint-disable max-lines -- 稳定性上报集中单模块，拆分反而增加跨文件状态同步 */
 import { createHash, randomUUID } from "node:crypto";
-import armsRum from "@arms/rum-electron";
+import { getDesktopArmsRum } from "./desktopArmsRum.js";
 import { BrowserWindow, type WebContents } from "electron";
 import {
   mapZCodeEnvToArmsRumEnv,
@@ -448,7 +449,7 @@ function reportStabilityCustom(
   try {
     // ARMS 原始日志/控制台按 custom 类型展示；业务分组用 group
     // value 填具体数值：ANR/挂死为 duration_ms，退出为 exit_code，计数类统一为 1
-    armsRum.sendCustom({
+    getDesktopArmsRum().sendCustom({
       name,
       type: "custom",
       group: "stability",
@@ -478,7 +479,7 @@ export function reportAgentProcessExceptionToArms(
   try {
     // 根因：Electron collector 只监听自身进程，CLI 异常必须携带原始栈显式发送，
     // 不能先转成 console.error 包装字符串，也不能等待进程退出后再上报。
-    armsRum.sendEvent({
+    getDesktopArmsRum().sendEvent({
       event_type: "exception",
       type: "error",
       source: diagnostic.kind,
@@ -883,8 +884,10 @@ function attachWebContentsStabilityWatch(
 }
 
 export function configureDesktopStabilityTelemetry(context: StabilityGlobalContext): void {
+  // 产品能力必须先于环境、旧配置和遥测副作用裁决。
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
   globalContext = context;
-  armsRum.setConfig("properties", {
+  getDesktopArmsRum().setConfig("properties", {
     device_mid: context.deviceMid,
     platform: normalizeOsCategory(context.platform),
     app_version: context.appVersion,
@@ -896,6 +899,7 @@ export function configureDesktopStabilityTelemetry(context: StabilityGlobalConte
 const PERF_APP_START_AFTER_VIEW_MS = 3_200;
 
 function reportPerfAppStart(logger: StabilityLogger): void {
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
   if (perfAppStartReported) {
     return;
   }
@@ -915,6 +919,7 @@ export function scheduleReportPerfAppStartAfterMainViewReady(
   webContents: WebContents,
   logger: StabilityLogger,
 ): void {
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
   if (perfAppStartReported || webContents.isDestroyed()) {
     return;
   }
@@ -969,7 +974,12 @@ export function notifyStabilityAppExit(
     exit_code: options?.exitCode ?? 0,
     exit_kind: options?.exitKind ?? "normal",
   });
-  logger.info("[stability] perf_app_exit reported", { scene, exitCode: options?.exitCode ?? 0 });
+  logger.info(
+    DESKTOP_PRODUCT_CAPABILITIES.telemetry
+      ? "[stability] perf_app_exit reported"
+      : "[stability] local app exit",
+    { scene, exitCode: options?.exitCode ?? 0 },
+  );
 }
 
 function reportPerfCrash(
@@ -1008,6 +1018,10 @@ export function registerDesktopStabilityMonitors(
   logger: StabilityLogger,
   crashPaths: CrashCapturePaths,
 ): void {
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) {
+    registerBaseCrashEventMonitor(logger, crashPaths);
+    return;
+  }
   registerBaseCrashEventMonitor(logger, crashPaths, {
     onRenderProcessGone: (webContents, details) => {
       markWebContentsCrash(webContents.id);

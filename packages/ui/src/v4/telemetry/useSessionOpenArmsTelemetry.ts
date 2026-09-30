@@ -1,3 +1,4 @@
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { useLayoutEffect, useRef } from "react";
 import { createSessionTraceId } from "@zcode/shared";
 import type { ConversationOpenTiming, ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
@@ -132,6 +133,11 @@ export function useSessionOpenArmsTelemetry({
   readOnly = false,
   reporter,
 }: UseSessionOpenArmsTelemetryParams): void {
+  const platform = useOptionalPlatform();
+  enabled =
+    enabled &&
+    platform?.productCapabilities?.telemetry !== false &&
+    reporter?.productCapabilities?.telemetry !== false;
   const runtimeRef = useRef<SessionOpenRuntime | null>(null);
   const latestTimingRef = useRef<{
     openTiming?: ConversationOpenTiming;

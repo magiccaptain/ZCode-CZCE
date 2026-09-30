@@ -275,17 +275,19 @@ export function sanitizeZCodeRuntimeEnvInPlace(env: Record<string, string | unde
   }
 }
 
-function isZCodeAgentTelemetryEnvKey(key: string): boolean {
-  return (
-    key.startsWith("OTEL_") ||
-    key.startsWith("ZCODE_TELEMETRY_") ||
-    key === "ZCODE_MODEL_TELEMETRY_ENABLED"
+/** 仅识别 inherited 产品遥测；显式 MCP server env 仍由其原 transport 合并。 */
+export function isZCodeAgentTelemetryEnvKey(key: string): boolean {
+  // 根因：ARMS endpoint 与 Renderer trace 开关不在旧前缀内，最终合并和 passthrough 可漏传。
+  // 统一识别器覆盖产品专用键；用户显式 MCP env / shell overlay 仍由原边界后合并。
+  return /^(OTEL_|ZCODE_TELEMETRY_|ZCODE_MODEL_TELEMETRY_ENABLED$|ZCODE_ARMS_RUM_ENDPOINT$|ZCODE_RENDERER_ACTION_TRACE_ENABLED$|ZCODE_.*(?:RESOURCE|TTFT))/i.test(
+    key,
   );
 }
 
 export function shouldSanitizeZCodeRuntimeEnvKey(key: string): boolean {
   const upperKey = key.toUpperCase();
   return (
+    isZCodeAgentTelemetryEnvKey(upperKey) ||
     SANITIZED_RUNTIME_ENV_KEYS.some((candidate) => candidate === upperKey) ||
     SANITIZED_PACKAGE_MANAGER_ENV_PATTERN.test(key)
   );

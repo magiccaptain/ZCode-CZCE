@@ -1,3 +1,4 @@
+import { DESKTOP_PRODUCT_CAPABILITIES } from "../main/productCapabilities.js";
 import { HostResponseTypes } from "@zcode/shared";
 import { setNetworkTelemetrySink, type NetworkObservation } from "@zcode/rpc";
 
@@ -30,6 +31,8 @@ function flushHostNetworkTelemetryBatch(): void {
 export function registerHostNetworkTelemetry(
   parentPort: HostNetworkTelemetryParentPort | null | undefined,
 ): void {
+  // 产品能力必须先于环境、旧配置和遥测副作用裁决。
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
   // 修复原因：desktop host 是 Electron utility process，通信端口在 process.parentPort；
   // node:worker_threads.parentPort 在这里为 null，会导致 LLM/RPC 网络遥测批次无法发回 main。
   activeParentPort = parentPort ?? null;

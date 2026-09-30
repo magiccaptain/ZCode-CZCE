@@ -12,6 +12,11 @@ export function initializeDesktopUserActionTrace(options: {
   platform: IPlatformService;
   isLocalDevelopmentRuntime: boolean;
 }): () => void {
+  // 禁用产品不创建 SDK，环境或灰度不能恢复采集。
+  if (options.platform.productCapabilities?.telemetry === false) {
+    setUserActionTelemetry(null);
+    return () => {};
+  }
   const sendBatch = options.platform.reportRendererActionTraceBatch;
   const getConfig = options.platform.getRendererActionTraceConfig;
   if (!sendBatch || !getConfig) {

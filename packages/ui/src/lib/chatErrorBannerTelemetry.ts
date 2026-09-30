@@ -170,7 +170,7 @@ function buildChatErrorBannerTelemetryPayload(params: {
 }
 
 export async function reportChatErrorBannerTelemetry(
-  platform: Pick<IPlatformService, "reportArmsCustomEvent">,
+  platform: Pick<IPlatformService, "reportArmsCustomEvent" | "productCapabilities">,
   params: {
     surface?: ChatErrorBannerSurface;
     errorKey?: string | null;
@@ -179,6 +179,7 @@ export async function reportChatErrorBannerTelemetry(
     providerBusinessRecoveryAction: ChatProviderBusinessRecoveryAction | null;
   },
 ): Promise<void> {
+  if (platform.productCapabilities?.telemetry === false) return;
   try {
     // 修复原因：错误横幅属于异常可观测，不能走数仓业务 telemetry；
     // 这里改走 ARMS custom，与 React ErrorBoundary 保持同一监控出口。

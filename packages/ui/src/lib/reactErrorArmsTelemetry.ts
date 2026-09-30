@@ -17,7 +17,7 @@ const REACT_ERROR_ARMS_GROUP = "react_error";
  */
 const REACT_ERROR_STACK_MAX_LEN = 4000;
 
-type ArmsReporter = Pick<IPlatformService, "reportArmsCustomEvent">;
+type ArmsReporter = Pick<IPlatformService, "reportArmsCustomEvent" | "productCapabilities">;
 
 let armsReporter: ArmsReporter | null = null;
 
@@ -29,7 +29,7 @@ let armsReporter: ArmsReporter | null = null;
  * Root effect 注入，Root 首帧就崩时 effect 从未执行，根级错误依旧丢失。
  */
 export function setReactErrorArmsReporter(reporter: ArmsReporter | null): void {
-  armsReporter = reporter;
+  armsReporter = reporter?.productCapabilities?.telemetry === false ? null : reporter;
 }
 
 /**

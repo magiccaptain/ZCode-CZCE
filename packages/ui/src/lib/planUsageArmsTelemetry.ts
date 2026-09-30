@@ -21,7 +21,7 @@ type PlanUsageRequestStatus =
   | "retry_scheduled"
   | "stream_stalled";
 
-type ArmsReporter = Pick<IPlatformService, "reportArmsCustomEvent">;
+type ArmsReporter = Pick<IPlatformService, "reportArmsCustomEvent" | "productCapabilities">;
 
 const reportedModelRequestEventKeys = new Set<string>();
 const MAX_REPORTED_MODEL_REQUEST_EVENT_KEYS = 2_000;
@@ -122,7 +122,7 @@ export function reportPlanUsageModelRequestStartedToArms(
   reporter: ArmsReporter | null | undefined,
   event: ZCodeTaskNetworkDebugStatus,
 ): void {
-  if (!reporter) {
+  if (!reporter || reporter.productCapabilities?.telemetry === false) {
     return;
   }
   if (!rememberModelRequestEventKey(event.eventKey)) {
@@ -186,7 +186,12 @@ export function reportPlanUsageTtftToArms(
     ttftMs: number;
   },
 ): void {
-  if (!reporter || !Number.isFinite(params.ttftMs) || params.ttftMs < 0) {
+  if (
+    !reporter ||
+    reporter.productCapabilities?.telemetry === false ||
+    !Number.isFinite(params.ttftMs) ||
+    params.ttftMs < 0
+  ) {
     return;
   }
 

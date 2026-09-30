@@ -35,6 +35,7 @@ import type { ZCodeAgentPresentationSurface } from "./zcodeAgentPresentationSurf
 import { shouldSpawnInDetachedProcessGroup } from "../process/processTreeTerminator.js";
 import type { RuntimeProcessLifecycleReporter } from "../process/runtimeProcessLifecycle.js";
 import { buildAgentWorkspaceIdentityEnv } from "../runtime-tools/agentProxyEnv.js";
+import { stripAgentProductTelemetryEnv } from "./agentTelemetryEnv.js";
 
 export interface ZCodeAgentCommand {
   /** 本地配套 CLI bundle 的存储专用 Worker 入口；远端/自定义命令不推断能力。 */
@@ -1021,7 +1022,9 @@ export class ZCodeAgentProcessManager {
       // agent 可能再派生实际 runtime/MCP 子进程。POSIX 下让 wrapper 进入独立进程组，
       // 关闭时才能按进程树整体回收；Windows 保持非 detached，交给 taskkill /T 处理。
       detached: shouldSpawnInDetachedProcessGroup(),
-      env: {
+      // 根因：spawnEnv / command.env 在清洗后合并，旧 OTEL override 可重新进入 Agent。
+      // 最终边界只清理产品遥测，保留 broker、Provider、网络和 workspace identity。
+      env: stripAgentProductTelemetryEnv({
         ...sanitizeZCodeRuntimeEnv(process.env),
         [ZCODE_RUNTIME_ENV_KEY]: runtimeEnv,
         ...spawnEnv,
@@ -1029,7 +1032,7 @@ export class ZCodeAgentProcessManager {
         // 身份/隔离语义使用 workspaceIdentity；cwd 继续使用 workspacePath。
         ...buildAgentWorkspaceIdentityEnv(params.workspaceIdentity),
         ...buildE2EAgentCoverageEnv(),
-      },
+      }),
       stdio: ["pipe", "pipe", "pipe"],
     });
     const startedAt = Date.now();

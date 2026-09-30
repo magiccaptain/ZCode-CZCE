@@ -31,7 +31,10 @@ export function resolvePresetModelProviderTelemetryLabel(presetId: BuiltinModelP
   return resolveProviderTelemetryLabel(presetId);
 }
 
-type ReportTelemetryPlatform = Pick<IPlatformService, "reportTelemetryEvent">;
+type ReportTelemetryPlatform = Pick<
+  IPlatformService,
+  "reportTelemetryEvent" | "productCapabilities"
+>;
 
 export async function reportAppTelemetryEvent(
   platform: ReportTelemetryPlatform,
@@ -47,6 +50,7 @@ export async function reportAppTelemetryEvent(
   },
   scope: string,
 ): Promise<void> {
+  if (platform.productCapabilities?.telemetry === false) return;
   try {
     const reportPayload = {
       context: collectTelemetryRendererContext(),

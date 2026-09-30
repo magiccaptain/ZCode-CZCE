@@ -2,7 +2,6 @@ import { observeLocalTtftCompaction } from "./local-ttft-compaction.js";
 import { LocalTtftClockWatch } from "./local-ttft-clock.js";
 import {
   SessionEventType,
-  observeLocalTurnPreparation,
   type SessionEvent,
   type ModelStreamingPayload,
   type ModelNetworkStatusPayload,
@@ -44,69 +43,9 @@ export class LocalTtftRecorder {
     private readonly onCheckpoint: (facts: LocalTtftFacts) => void = () => {},
   ) {}
 
-  receive(envelope: CommandEnvelope, busy: boolean): boolean {
-    this.prune();
-    if (
-      !envelope.ttft ||
-      this.records.has(envelope.commandId) ||
-      this.completed.has(envelope.commandId)
-    )
-      return true;
-    if (this.records.size >= LOCAL_TTFT_MAX_PENDING) return false;
-    this.records.set(envelope.commandId, {
-      ...envelope.ttft,
-      instanceId: this.instanceId,
-      commandId: envelope.commandId,
-      ...(envelope.sessionId ? { sessionId: envelope.sessionId } : {}),
-      receivedAt: this.now(),
-      sendMode: busy ? "queued" : "idle",
-      details: [],
-    });
-    this.clockWatch ??= new LocalTtftClockWatch(this.now, (unreliable) => {
-      if (unreliable)
-        for (const record of this.records.values()) {
-          if (record.outputAt === undefined) {
-            record.clockInvalid = true;
-            this.checkpoint(record);
-          }
-        }
-      this.prune();
-      if (!this.records.size) {
-        this.clockWatch?.dispose();
-        this.clockWatch = undefined;
-      }
-    });
-    this.preparationSubscriptions.set(
-      envelope.commandId,
-      observeLocalTurnPreparation(envelope.commandId, (fact) => {
-        const record = this.records.get(envelope.commandId);
-        if (
-          !record ||
-          (record.sessionId && record.sessionId !== fact.sessionId) ||
-          (record.turnId && record.turnId !== fact.turnId)
-        )
-          return;
-        record.sessionId = fact.sessionId;
-        record.turnId = fact.turnId;
-        if (fact.stage === "execution") record.executionAt ??= fact.start;
-        else {
-          const details = (record.details ??= []);
-          const index = details.findIndex((detail) => detail.id === fact.id);
-          const detail = {
-            id: fact.id,
-            stage: fact.stage,
-            start: fact.start,
-            end: fact.end,
-            outcome: fact.outcome,
-            source: "cli" as const,
-          };
-          if (index >= 0) details[index] = detail;
-          else if (details.length < LOCAL_TTFT_MAX_DETAILS) details.push(detail);
-          else record.truncated = true;
-        }
-        this.checkpoint(record);
-      }),
-    );
+  receive(_envelope: CommandEnvelope, _busy: boolean): boolean {
+    // 根因：旧客户端的 ttft envelope 能恢复 observer/clock/旁路队列，绕过 UI 禁用。
+    // Fork 拒绝遥测 admission，但不能影响 CommandInbox 对原业务命令的接受。
     return true;
   }
   private checkpoint(record: LocalTtftFacts): void {

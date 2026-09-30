@@ -1,5 +1,6 @@
 import { DESKTOP_PRODUCT_CAPABILITIES } from "../main/productCapabilities.js";
 import {
+  DISABLED_RENDERER_ACTION_TRACE_CONFIG,
   databaseStartupControlSchema,
   databaseStartupStateSchema,
   databaseStartupPortPayloadSchema,
@@ -632,7 +633,9 @@ contextBridge.exposeInMainWorld("zcode", {
   notifyRendererReady: () => ipcRenderer.send(PlatformChannels.RendererReady),
   /** 同步 renderer telemetry 上下文到 main process */
   syncTelemetryContext: (context: TelemetryRendererContext) =>
-    ipcRenderer.send(PlatformChannels.SyncTelemetryContext, context),
+    DESKTOP_PRODUCT_CAPABILITIES.telemetry
+      ? ipcRenderer.send(PlatformChannels.SyncTelemetryContext, context)
+      : undefined,
   /** 通过 main process 统一上报业务 telemetry 事件 */
   reportTelemetryEvent: (payload: {
     context: TelemetryRendererContext;
@@ -644,21 +647,30 @@ contextBridge.exposeInMainWorld("zcode", {
     userId?: string;
     talkId?: string;
     messageId?: string;
-  }) => ipcRenderer.invoke(PlatformChannels.ReportTelemetryEvent, payload),
+  }) =>
+    DESKTOP_PRODUCT_CAPABILITIES.telemetry
+      ? ipcRenderer.invoke(PlatformChannels.ReportTelemetryEvent, payload)
+      : Promise.resolve(),
   /** 通过 main process 统一上报 ARMS 自定义事件 */
   reportArmsCustomEvent: (payload: {
     name: string;
     group: string;
     value?: number;
     properties?: Record<string, string | number | boolean | undefined>;
-  }) => ipcRenderer.invoke(PlatformChannels.ReportArmsCustomEvent, payload),
+  }) =>
+    DESKTOP_PRODUCT_CAPABILITIES.telemetry
+      ? ipcRenderer.invoke(PlatformChannels.ReportArmsCustomEvent, payload)
+      : Promise.resolve(),
   /** 读取 Renderer 用户操作 Trace 灰度配置。 */
   getRendererActionTraceConfig: (): Promise<RendererActionTraceConfigV1> =>
-    ipcRenderer.invoke(PlatformChannels.GetRendererActionTraceConfig),
+    DESKTOP_PRODUCT_CAPABILITIES.telemetry
+      ? ipcRenderer.invoke(PlatformChannels.GetRendererActionTraceConfig)
+      : Promise.resolve(DISABLED_RENDERER_ACTION_TRACE_CONFIG),
   /** 订阅 Main 推送的 Renderer 用户操作 Trace 配置变化。 */
   onRendererActionTraceConfigChanged: (
     callback: (config: RendererActionTraceConfigV1) => void,
   ): (() => void) => {
+    if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return () => {};
     const handler = (_event: unknown, config: RendererActionTraceConfigV1) => callback(config);
     ipcRenderer.on(PlatformChannels.RendererActionTraceConfigChanged, handler);
     return () =>
@@ -666,15 +678,21 @@ contextBridge.exposeInMainWorld("zcode", {
   },
   /** 发送已结束 Span；使用 send 避免遥测往返阻塞业务。 */
   reportLocalTtftBatch: (batch: import("@zcode/shared").LocalTtftBatch): void =>
-    ipcRenderer.send(PlatformChannels.ReportLocalTtftBatch, batch),
+    DESKTOP_PRODUCT_CAPABILITIES.telemetry
+      ? ipcRenderer.send(PlatformChannels.ReportLocalTtftBatch, batch)
+      : undefined,
   reportRendererActionTraceBatch: (batch: RendererActionTraceBatchV1): void =>
-    ipcRenderer.send(PlatformChannels.ReportRendererActionTraceBatch, batch),
+    DESKTOP_PRODUCT_CAPABILITIES.telemetry
+      ? ipcRenderer.send(PlatformChannels.ReportRendererActionTraceBatch, batch)
+      : undefined,
   /**
    * 主窗口 renderer 的 60 秒 heap 读数。
    * 只提供单向 send：main 不回执，renderer 也不能靠它反查 main 的进程事实。
    */
   reportRendererHeapSample: (sample: RendererHeapSample): void =>
-    ipcRenderer.send(PlatformChannels.ReportRendererHeapSample, sample),
+    DESKTOP_PRODUCT_CAPABILITIES.telemetry
+      ? ipcRenderer.send(PlatformChannels.ReportRendererHeapSample, sample)
+      : undefined,
   /** 通过 main process 触发原生任务通知 */
   showTaskNotification: (payload: TaskNotificationPayload) =>
     ipcRenderer.send(PlatformChannels.ShowTaskNotification, payload),

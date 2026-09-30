@@ -1,3 +1,4 @@
+import { DESKTOP_PRODUCT_CAPABILITIES } from "./productCapabilities.js";
 import type { TelemetryRendererContext } from "@zcode/shared";
 
 interface StartupCoordinatorLike {
@@ -31,6 +32,25 @@ export function createAppTelemetryRuntime({
   setInterval: setIntervalFn = setInterval,
   clearInterval: clearIntervalFn = clearInterval,
 }: AppTelemetryRuntimeDependencies) {
+  // 产品能力必须先于环境、旧配置和遥测副作用裁决。
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry)
+    return {
+      syncRendererContext(): void {},
+      getLatestRendererContext(): TelemetryRendererContext | null {
+        return null;
+      },
+      getRendererContext(): TelemetryRendererContext | null {
+        return null;
+      },
+      setInteractive(): void {},
+      onRendererReady(input: { hasPendingOAuthCallback: boolean; rendererId: number }): void {
+        appLaunchCoordinator.onRendererReady(input);
+      },
+      onOAuthCallbackHandled(input: { rendererId: number }): void {
+        appLaunchCoordinator.onOAuthCallbackHandled(input);
+      },
+      dispose(): void {},
+    };
   const rendererContexts = new Map<number, TelemetryRendererContext>();
   let pendingStartupTelemetryRendererId: number | null = null;
   let latestRendererContext: TelemetryRendererContext | null = null;

@@ -21,6 +21,7 @@ import {
   shouldBareEnterFallThroughToNewline,
 } from "@/shortcuts/composerShortcuts.js";
 import { useEffectiveShortcutBindings } from "@/shortcuts/useShortcutBindings.js";
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
@@ -817,12 +818,16 @@ function TextContentPlugin({
   taskId?: string | null;
 }) {
   const [editor] = useLexicalComposerContext();
+  const platform = useOptionalPlatform();
+  const telemetryEnabled = platform?.productCapabilities?.telemetry !== false;
   // IME 组合态标记:不直接依赖 editor.isComposing(),因为它在 update listener 同步执行时
   // 是否已反映组合态存在时序不确定性,读不到 true 会把中文/日文长文本组合的高耗时误报成打字卡顿。
   // 改由 compositionstart/compositionend 事件自行维护,稳健可控。
   const composingRef = useRef(false);
 
   useEffect(() => {
+    // 根因：只在 reporter 出口丢弃仍会安装监听并采集输入耗时，产品裁决必须先于采集。
+    if (!telemetryEnabled) return;
     const handleCompositionStart = () => {
       composingRef.current = true;
     };
@@ -842,7 +847,7 @@ function TextContentPlugin({
       rootElement?.addEventListener("compositionstart", handleCompositionStart);
       rootElement?.addEventListener("compositionend", handleCompositionEnd);
     });
-  }, [editor]);
+  }, [editor, telemetryEnabled]);
 
   useEffect(() => {
     if (!onChange) {
@@ -856,7 +861,7 @@ function TextContentPlugin({
         }
 
         // 输入卡顿计时:包住「全量序列化 + onChange 同步重渲染」这段处理热点。
-        const startedAt = performance.now();
+        const startedAt = telemetryEnabled ? performance.now() : undefined;
 
         const nextText = getEditorMarkdown(editorState);
         const previousText = getEditorMarkdown(prevEditorState);
@@ -866,6 +871,8 @@ function TextContentPlugin({
 
         onChange(nextText);
 
+        // 禁用仅跳过遥测，首字符/后续文本的序列化与 onChange 必须照常执行。
+        if (startedAt === undefined) return;
         const lagMs = performance.now() - startedAt;
         // 程序化改写与 IME 组合态不算打字卡顿(判定在 recordInputLag 内统一短路)。
         recordInputLag({
@@ -877,7 +884,7 @@ function TextContentPlugin({
         });
       },
     );
-  }, [editor, onChange, taskId]);
+  }, [editor, onChange, taskId, telemetryEnabled]);
 
   return null;
 }

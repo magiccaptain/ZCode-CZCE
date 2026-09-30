@@ -11,13 +11,13 @@ import { desktopBrowserPlatformBridge } from "./desktopBrowserPlatformBridge.js"
 export function createDesktopPlatform(options: {
   isLocalDevelopmentRuntime: boolean;
 }): IPlatformService {
-  return {
-    productCapabilities: Object.freeze(
-      productCapabilitiesSchema.parse(
-        (window as unknown as { zcode: { productCapabilities: unknown } }).zcode
-          .productCapabilities,
-      ),
+  const productCapabilities = Object.freeze(
+    productCapabilitiesSchema.parse(
+      (window as unknown as { zcode: { productCapabilities: unknown } }).zcode.productCapabilities,
     ),
+  );
+  return {
+    productCapabilities,
     canSelectFilePath: true,
     createLocalMediaPreviewUrl: buildLocalMediaPreviewUrl,
     isLocalDevelopmentRuntime: options.isLocalDevelopmentRuntime,
@@ -69,9 +69,13 @@ export function createDesktopPlatform(options: {
     onPaymentCallback: (callback) => window.zcode.onPaymentCallback(callback),
     onShareImport: (callback) => window.zcode.onShareImport?.(callback) ?? (() => {}),
     notifyRendererReady: () => window.zcode.notifyRendererReady(),
-    reportTelemetryEvent: (payload) => window.zcode.reportTelemetryEvent(payload),
+    reportTelemetryEvent: (payload) =>
+      productCapabilities.telemetry
+        ? window.zcode.reportTelemetryEvent(payload)
+        : Promise.resolve(),
     reportArmsCustomEvent: (payload) => {
-      recordArmsCustomEventForE2E(payload);
+      if (!productCapabilities.telemetry) return Promise.resolve();
+      recordArmsCustomEventForE2E(payload, { productCapabilities });
       return window.zcode.reportArmsCustomEvent(payload);
     },
     getRendererActionTraceConfig: window.zcode.getRendererActionTraceConfig
@@ -84,9 +88,10 @@ export function createDesktopPlatform(options: {
     reportRendererActionTraceBatch: window.zcode.reportRendererActionTraceBatch
       ? (batch) => window.zcode.reportRendererActionTraceBatch!(batch)
       : undefined,
-    reportRendererHeapSample: window.zcode.reportRendererHeapSample
-      ? (sample) => window.zcode.reportRendererHeapSample!(sample)
-      : undefined,
+    reportRendererHeapSample:
+      productCapabilities.telemetry && window.zcode.reportRendererHeapSample
+        ? (sample) => window.zcode.reportRendererHeapSample!(sample)
+        : undefined,
     showTaskNotification: (payload) => window.zcode.showTaskNotification(payload),
     syncWindowTabs: (paths) => window.zcode.syncWindowTabs(paths),
     syncWindowUnreadCount: (count) => window.zcode.syncWindowUnreadCount(count),

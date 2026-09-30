@@ -10,7 +10,7 @@ import {
   onLocalDatabaseStartupReady,
   configureDatabaseStartupQuit,
 } from "./databaseStartupRelay.js";
-import armsRum from "@arms/rum-electron";
+import { getDesktopArmsRum } from "./desktopArmsRum.js";
 import { createArmsUserIdentitySync } from "./armsUserIdentity.js";
 import { ensureDesktopDeviceMidSync } from "./desktopDeviceMid.js";
 import {
@@ -672,7 +672,10 @@ const UPDATE_STATUS_WINDOW_TRAFFIC_LIGHT_POSITION = { x: 10, y: 10 } as const;
 const mainSettingService = createSettingService();
 const appLaunchGate = createAppLaunchGate();
 const appLaunchCoordinator = createAppLaunchCoordinator(appLaunchGate);
-const appTelemetryCredentialService = createCredentialService();
+const appTelemetryCredentialService = DESKTOP_PRODUCT_CAPABILITIES.telemetry
+  ? createCredentialService()
+  : undefined;
+
 async function resolveCurrentZCodeEndpointOrigin() {
   return resolveZCodeEndpointOrigin({
     env: ZCODE_ENV,
@@ -726,19 +729,27 @@ function awaitFirstHostSpawnDecision(): Promise<void> {
   })();
   return firstHostSpawnDecisionPromise;
 }
-const appTelemetryCore = createTelemetryCore({
-  loadUserId: createTelemetryUserIdLoader(appTelemetryCredentialService),
-  loadAuthorization: createTelemetryAuthorizationLoader(appTelemetryCredentialService),
-  loadMarketingParams: createTelemetryMarketingParamsLoader(appTelemetryCredentialService),
-  resolveZCodeEndpointOrigin: resolveCurrentZCodeEndpointOrigin,
-  fetchImpl: createDesktopTelemetryFetch(net),
-});
+const appTelemetryCore = appTelemetryCredentialService
+  ? createTelemetryCore({
+      loadUserId: createTelemetryUserIdLoader(appTelemetryCredentialService),
+      loadAuthorization: createTelemetryAuthorizationLoader(appTelemetryCredentialService),
+      loadMarketingParams: createTelemetryMarketingParamsLoader(appTelemetryCredentialService),
+      resolveZCodeEndpointOrigin: resolveCurrentZCodeEndpointOrigin,
+      fetchImpl: createDesktopTelemetryFetch(net),
+    })
+  : {
+      reportEvent: async (_input: unknown): Promise<void> => {},
+      reportAppLaunch: async (): Promise<void> => {},
+      reportAppDailyActive: async (): Promise<void> => {},
+      flushPendingReports: async (_options: unknown): Promise<void> => {},
+    };
 const appTelemetryRuntime = createAppTelemetryRuntime({
   telemetryCore: appTelemetryCore,
   appLaunchCoordinator,
 });
 
 function reportRemoteUsageEventForRenderer(rendererId: number, event: TelemetryEventPayload): void {
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
   const context =
     appTelemetryRuntime.getRendererContext(rendererId) ??
     appTelemetryRuntime.getLatestRendererContext();
@@ -760,7 +771,7 @@ function syncAppTelemetryInteractiveState(): void {
     ),
   );
   // 登出/切号发生在 host 子进程，主进程无即时信号；窗口聚焦时兜底刷新 ARMS user.name
-  void armsUserIdentitySync.refresh();
+  if (DESKTOP_PRODUCT_CAPABILITIES.telemetry) void armsUserIdentitySync.refresh();
 }
 
 app.on("browser-window-focus", (_event, win) => {
@@ -831,8 +842,8 @@ const armsUserIdentitySync = createArmsUserIdentitySync({
   deviceMid,
   // 采集停用时 SDK 未初始化，setConfig 会抛错。
   setUser:
-    ZCODE_TELEMETRY_ENABLED && ZCODE_ARMS_RUM_ENDPOINT
-      ? (user) => armsRum.setConfig("user", user)
+    DESKTOP_PRODUCT_CAPABILITIES.telemetry && ZCODE_TELEMETRY_ENABLED && ZCODE_ARMS_RUM_ENDPOINT
+      ? (user) => getDesktopArmsRum().setConfig("user", user)
       : () => {},
 });
 
@@ -2173,7 +2184,7 @@ app.whenReady().then(async () => {
     logger,
     appTelemetryRuntime,
     onOAuthCallbackHandledSideEffect: () => {
-      void armsUserIdentitySync.refresh();
+      if (DESKTOP_PRODUCT_CAPABILITIES.telemetry) void armsUserIdentitySync.refresh();
     },
     appTelemetryCore,
     reportRemoteUsageEvent: reportRemoteUsageEventForRenderer,
@@ -2201,10 +2212,14 @@ app.whenReady().then(async () => {
   await armsInitPromise;
 
   // ARMS init 完成后首次写入 user.name（落 device_mid）
-  void armsUserIdentitySync.refresh();
+  if (DESKTOP_PRODUCT_CAPABILITIES.telemetry) void armsUserIdentitySync.refresh();
 
   // 未配置 ARMS 端点时不初始化上报 context，避免把空转误当成已启用。
-  if (ZCODE_TELEMETRY_ENABLED && ZCODE_ARMS_RUM_ENDPOINT) {
+  if (
+    DESKTOP_PRODUCT_CAPABILITIES.telemetry &&
+    ZCODE_TELEMETRY_ENABLED &&
+    ZCODE_ARMS_RUM_ENDPOINT
+  ) {
     configureDesktopStabilityTelemetry({
       deviceMid,
       platform: process.platform,

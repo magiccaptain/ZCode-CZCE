@@ -1,3 +1,4 @@
+import { DESKTOP_PRODUCT_CAPABILITIES } from "../main/productCapabilities.js";
 import type { IpcRenderer } from "electron";
 
 /** 与 @arms/rum-electron 内置 preload 一致 */
@@ -64,6 +65,8 @@ function patchArmsEventBridgeIfPresent(): boolean {
 }
 
 export function scheduleArmsEventBridgePatch(maxAttempts = 100): void {
+  // 产品能力必须先于环境、旧配置和遥测副作用裁决。
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
   if (patchArmsEventBridgeIfPresent()) {
     return;
   }
@@ -87,6 +90,7 @@ export function installArmsRumBridgeIpcForward(ipc: IpcRenderer): void {
   }
   const originalSend = ipc.send.bind(ipc);
   patched.send = ((channel: string, ...args: unknown[]) => {
+    if (channel === ARMS_RUM_BRIDGE_CHANNEL && !DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
     if (channel === ARMS_RUM_BRIDGE_CHANNEL && args.length > 0 && typeof args[0] === "string") {
       const raw = args[0];
       const payloads = expandArmsRumBridgePayloads(raw);

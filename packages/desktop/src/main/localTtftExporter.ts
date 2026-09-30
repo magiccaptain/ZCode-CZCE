@@ -1,3 +1,4 @@
+import { DESKTOP_PRODUCT_CAPABILITIES } from "./productCapabilities.js";
 import { createLocalTtftSpans } from "./localTtftSpans.js";
 import { LocalTtftExportDedupe } from "./localTtftExportDedupe.js";
 import { resourceFromAttributes } from "@opentelemetry/resources";
@@ -27,6 +28,12 @@ export function createLocalTtftExporter(options: {
   version: string;
   logger: { warn(...args: unknown[]): void };
 }) {
+  // 产品能力必须先于环境、旧配置和遥测副作用裁决。
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry)
+    return {
+      enqueue: (_batch: unknown): boolean => false,
+      shutdown: async (): Promise<void> => {},
+    };
   const exporter = createRendererActionTraceExporter(options.env);
   const endpoint =
     validHttpUrl(options.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT) ??

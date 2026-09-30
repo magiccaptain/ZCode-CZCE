@@ -11,7 +11,7 @@ const SEND_FUNNEL_EVENT_INPUT_FOCUS = "send_input_focus";
 const SEND_FUNNEL_EVENT_SEND_CLICK = "send_click";
 const SEND_FUNNEL_EVENT_SEND_RESULT = "send_result";
 
-type ArmsReporter = Pick<IPlatformService, "reportArmsCustomEvent">;
+type ArmsReporter = Pick<IPlatformService, "reportArmsCustomEvent" | "productCapabilities">;
 
 /** 发送落定的原因码。 */
 export type SendFunnelReasonCode =
@@ -28,7 +28,7 @@ export type SendFunnelReasonCode =
 let armsReporter: ArmsReporter | null = null;
 
 export function setSendFunnelArmsReporter(reporter: ArmsReporter | null): void {
-  armsReporter = reporter;
+  armsReporter = reporter?.productCapabilities?.telemetry === false ? null : reporter;
 }
 
 // 原因:ARMS 属观测链路,发送主链路不得因埋点失败而中断。

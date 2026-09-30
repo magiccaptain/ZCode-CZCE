@@ -1,3 +1,4 @@
+import { DESKTOP_PRODUCT_CAPABILITIES } from "../main/productCapabilities.js";
 /**
  * Host 进程自身的资源遥测。
  *
@@ -37,6 +38,16 @@ interface HostSelfResourceTelemetry {
 export function startHostSelfResourceTelemetry(
   options: StartHostSelfResourceTelemetryOptions,
 ): HostSelfResourceTelemetry {
+  // 产品能力必须先于环境、旧配置和遥测副作用裁决。
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry)
+    return startHostMemoryDiagnosticsLog({
+      logger: options.logger,
+      collectCounters: options.collectCounters,
+      readMemoryUsage: options.readMemoryUsage,
+      now: options.now,
+      intervalMs: options.intervalMs,
+      timer: options.timer,
+    });
   const sampler = createNodeSelfResourceSampler(options);
   const postMessage = options.postMessage;
 

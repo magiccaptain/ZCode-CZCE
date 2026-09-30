@@ -58,3 +58,14 @@ APPIMAGE_EXTRACT_AND_RUN=1 pnpm --filter @zcode/desktop e2e:updates --executable
 ```
 
 这些测试会使用系统临时目录和忽略的缓存。默认更新测试不使用模型 key；追加打包冒烟时使用。`--extensions` 仍使用真实模型请求，MCP 仅连接本机 fixture。Windows/macOS 需要各自环境实际执行，不能用 Linux 结果替代。
+
+## Issue #2 Desktop/UI 遥测边界
+
+- `pnpm --filter @zcode/desktop exec tsx --test test/telemetryGuards.test.mjs`：真实初始化 guard 的端口隔离测试，包含 SDK 延迟加载、heartbeat、Host 订阅、网络任务、旧 ARMS 桥、OTLP exporter、Renderer SDK/TTFT 以及 Main 本地内存诊断保留。
+- `pnpm exec tsx --test packages/ui/test/productTelemetry.test.mjs`：产品能力优先于 reporter、ARMS E2E 缓冲和 workspace telemetry supervisor。
+- `pnpm --filter @zcode/desktop exec tsx e2e/run-telemetry.mjs`：无需模型凭据；分别重建 production/test 并启动实际 Electron Main/Host/preload/renderer，覆盖干净和旧遥测数据目录、显式 OTEL/trace/TTFT 环境、旧上报调用、绕过 preload 的 Main 请求、模拟原生错误通知及正常退出。观察 SDK 未加载、产品遥测请求和本地 OTEL 陷阱请求为零，旧队列/状态字节未变，本地 crashReporter 不上传。
+
+- 核心基线追加 `--extensions --telemetry`：在实际模型、Bash、权限、追加、停止、恢复、用户/工作区 Skills、stdio/带鉴权 HTTP MCP 和退出期间设置显式遥测环境，验证 OTLP 陷阱请求为零、旧队列字段不变、Renderer SDK 缺席。缺 deviceMid 的旧文件仅允许原共享 identity owner 补身份（非遥测消费者仍需要）；已有合法身份的文件字节保持由关闭专项验证。
+- `e2e/run-telemetry.mjs --executable /absolute/path/to/ZCode.AppImage --key-file /absolute/path/outside/repository/deepseek-api-key`：实跑当前包（Linux 使用 `APPIMAGE_EXTRACT_AND_RUN=1`），干净/旧队列两场景、原生本地 crashReporter 不上传、SDK 未加载与真实 Chromium netlog 无产品遥测 URL；可选 key 使用包内 Agent 完成一次真实对话及 SQLite 持久化。打包场景不注入 Main spy，旧请求通过正常 preload 测试；原始 netlog 仅在私有目录保留。
+
+E2E 报告与脱敏日志写入忽略的 `.e2e-artifacts/telemetry-*/`，核心基线仍写 UUID 目录。模拟错误通知不代表真实 native crash；组件测试另覆盖 Agent factory、最终 env 清洗和正常/模拟异常退出，专项本身不等于完整 Agent/Tool/MCP 网络证明。未运行 Windows/macOS、系统级安装或包内完整 Skills/MCP 基线，不宣称其他产品网络请求已经关闭。最终范围与本机证据见 `specs/desktop-local-fork/issue2-telemetry.md` 和 `issue2-results.md`。

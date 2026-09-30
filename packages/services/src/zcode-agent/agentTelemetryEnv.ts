@@ -1,36 +1,30 @@
-import { createHash } from "node:crypto";
+import { isZCodeAgentTelemetryEnvKey, type ProductCapabilities } from "@zcode/shared";
 
 interface BuildAgentTelemetrySpawnEnvInput {
+  productCapabilities?: Readonly<Pick<ProductCapabilities, "telemetry">>;
   telemetryEnv: Record<string, string>;
   deviceMid?: string;
   userId?: string;
   runtimeSurface: "desktop_local_host" | "remote_workspace_host";
 }
 
+/** Desktop capability 沿既有启动适配传入；Fork 不再提供产品遥测注入路径。 */
 export function buildAgentTelemetrySpawnEnv(
-  input: BuildAgentTelemetrySpawnEnvInput,
+  _input: BuildAgentTelemetrySpawnEnvInput,
 ): Record<string, string> {
-  if (
-    !input.telemetryEnv.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT &&
-    !input.telemetryEnv.OTEL_EXPORTER_OTLP_ENDPOINT
-  ) {
-    return {};
-  }
-  const deviceMid = input.deviceMid?.trim();
-  const userId = input.userId?.trim();
-  return {
-    ...input.telemetryEnv,
-    ...(deviceMid ? { ZCODE_TELEMETRY_DEVICE_MID: deviceMid } : {}),
-    ...(userId
-      ? {
-          ZCODE_TELEMETRY_IDENTITY_STATE: "authenticated",
-          // Desktop 原始账号只在 Host 凭据边界可见；Agent 仅收到不可读的 subject，
-          // Trace 可以按用户关联，但不会上传账号、邮箱或登录名。
-          ZCODE_TELEMETRY_USER_SUBJECT_ID: createHash("sha256").update(userId).digest("hex"),
-        }
-      : {
-          ZCODE_TELEMETRY_IDENTITY_STATE: deviceMid ? "anonymous" : "unknown",
-        }),
-    ZCODE_TELEMETRY_RUNTIME_SURFACE: input.runtimeSurface,
-  };
+  // 根因：旧 endpoint/身份配置曾在通用 env 清洗之后重新注入，能绕过产品关闭。
+  // 产品遥测在本 Fork 不可启用，保留适配契约但不读取或传递任何配置。
+  return {};
+}
+
+/** 最终合并后仅剔除产品 inherited 配置，不能再次清洗 broker/网络/identity。 */
+export function stripAgentProductTelemetryEnv(
+  env: Record<string, string | undefined>,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(env).filter(
+      (entry): entry is [string, string] =>
+        entry[1] !== undefined && !isZCodeAgentTelemetryEnvKey(entry[0]),
+    ),
+  );
 }

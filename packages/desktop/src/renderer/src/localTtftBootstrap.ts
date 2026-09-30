@@ -3,6 +3,7 @@ import { LocalTtftObserver, setLocalTtftObserver } from "@zcode/ui";
 
 /** 单窗口批量出口；关闭采集只影响新输入，已启用的发送保留原决定。 */
 export function initializeDesktopLocalTtft(platform: IPlatformService): () => void {
+  if (platform.productCapabilities?.telemetry === false) return () => {};
   if (!platform.reportLocalTtftBatch || !platform.getRendererActionTraceConfig) return () => {};
   const rendererInstanceId = crypto.randomUUID();
   let records: LocalTtftRecord[] = [];

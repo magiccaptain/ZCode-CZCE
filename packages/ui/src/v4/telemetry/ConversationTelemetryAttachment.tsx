@@ -201,8 +201,10 @@ export function ConversationTelemetryWorkspaceAttachment({
     [remoteSessionId, workspaceIdentity, workspacePath],
   );
   const lease = useMemo(() => {
+    // 产品关闭必须先于 service 获取，不能安装旁路订阅或 supervisor。
+    if (!enabled || !platform || platform.productCapabilities?.telemetry === false) return null;
     const agentService = services.zcodeAgentService as object | null | undefined;
-    if (!enabled || !platform || !agentService) return null;
+    if (!agentService) return null;
     // Bug 根因：Root 的隔离渲染和远端 service 准备阶段可能尚无 PlatformProvider 或 agent service。
     // telemetry 是旁路能力，不能因依赖未就绪阻断 workspace 主界面；依赖齐备后再按 generation 建 lease。
     return acquireSupervisor(scope, services, platform);

@@ -1,3 +1,4 @@
+import { DESKTOP_PRODUCT_CAPABILITIES } from "../main/productCapabilities.js";
 import { registerHostToolExecResourceTelemetry } from "./hostToolExecResourceTelemetry.js";
 import { registerHostMcpResourceTelemetry } from "./hostMcpResourceTelemetry.js";
 import type { IDisposable } from "@zcode/rpc";
@@ -45,6 +46,8 @@ function disposeAll(registrations: IDisposable[]): void {
 export function registerHostServiceResourceTelemetry(
   options: RegisterHostServiceResourceTelemetryOptions,
 ): IDisposable {
+  // 产品能力必须先于环境、旧配置和遥测副作用裁决。
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return NO_TELEMETRY;
   // 旧 Server 的未知事件异常发生在对端异步读循环，下面的本地 try/catch 无法保护它；
   // 因此缺能力时必须在获取服务、发送任何 EventListen 之前退出。
   if (options.telemetrySupported === false) {

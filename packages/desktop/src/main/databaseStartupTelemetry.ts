@@ -1,4 +1,6 @@
-import armsRum from "@arms/rum-electron";
+import { DESKTOP_PRODUCT_CAPABILITIES } from "./productCapabilities.js";
+import type armsRum from "@arms/rum-electron";
+import { getDesktopArmsRum } from "./desktopArmsRum.js";
 import {
   ZCODE_VERSION,
   type DatabaseStartupState,
@@ -8,7 +10,6 @@ import { ensureDesktopDeviceMidSync } from "./desktopDeviceMid.js";
 import { buildFinalArmsCustomEventPayload } from "./desktopArmsCustomEvent.js";
 import { logger } from "./logger.js";
 
-const deviceMid = ensureDesktopDeviceMidSync();
 type Attempt = { lastStage: string; stageAt: number; databaseFinished: boolean; terminal: boolean };
 const attempts = new Map<string, Attempt>();
 
@@ -36,14 +37,14 @@ function send(
         },
       },
       context: {
-        deviceMid,
+        deviceMid: ensureDesktopDeviceMidSync(),
         platform: process.platform,
         appVersion: ZCODE_VERSION,
-        armsEnv: armsRum.getConfig().env === "prod" ? "prod" : "local",
+        armsEnv: getDesktopArmsRum().getConfig().env === "prod" ? "prod" : "local",
         rendererId: 0,
       },
     });
-    armsRum.sendCustom(payload as Parameters<typeof armsRum.sendCustom>[0]);
+    getDesktopArmsRum().sendCustom(payload as Parameters<typeof armsRum.sendCustom>[0]);
   } catch {
     /* 上报入口失败不能阻断启动或失败提示。 */
   }
@@ -51,6 +52,16 @@ function send(
 
 /** 输入是 Host 聚合镜像；不访问数据库/故障磁盘、不写逐样本日志。 */
 export function reportDatabaseStartupState(state: DatabaseStartupState): void {
+  // 产品能力必须先于环境、旧配置和遥测副作用裁决。
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) {
+    if (state.phase === "ready" || state.phase === "failed")
+      logger.info("[database-startup] terminal", {
+        attemptId: state.attemptId,
+        status: state.phase,
+        errorCode: state.errorCode,
+      });
+    return;
+  }
   let attempt = attempts.get(state.attemptId);
   if (!attempt) {
     if (attempts.size >= 128) attempts.delete(attempts.keys().next().value!);

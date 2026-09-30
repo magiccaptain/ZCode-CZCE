@@ -1,4 +1,6 @@
-import armsRum from "@arms/rum-electron";
+/* oxlint-disable eslint(max-lines) -- 资源采样、残窗与本地内存诊断共享生命周期；产品 guard 不拆出第二个状态 owner。 */
+import { DESKTOP_PRODUCT_CAPABILITIES } from "./productCapabilities.js";
+import { getDesktopArmsRum } from "./desktopArmsRum.js";
 import {
   bytesToKb,
   createMemorySampleWriteGate,
@@ -154,7 +156,7 @@ function reportResourceCustom(
   }
 
   try {
-    armsRum.sendCustom(payload);
+    getDesktopArmsRum().sendCustom(payload);
   } catch (error) {
     console.warn("[resource] sendCustom failed:", name, error);
   }
@@ -415,13 +417,15 @@ function flushResourceReports(logger: ResourceLogger): void {
 }
 
 export function configureDesktopResourceTelemetry(context: ResourceGlobalContext): void {
+  // 产品能力必须先于环境、旧配置和遥测副作用裁决。
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
   recentToolExecCompletions.clear();
   processResourceWindows.clear();
   processResourceSystemWindow.clear();
   globalContext = context;
   desktopHardware = resolveDesktopHardware(context.platform);
 
-  armsRum.setConfig("properties", {
+  getDesktopArmsRum().setConfig("properties", {
     device_mid: context.deviceMid,
     platform: normalizeOsCategory(context.platform),
     app_version: context.appVersion,
@@ -431,13 +435,19 @@ export function configureDesktopResourceTelemetry(context: ResourceGlobalContext
 
 export function registerDesktopResourceTelemetry(
   logger: ResourceLogger,
-  /**
-   * `reportIntervalMs` 只供单测注入窗口时钟；生产走 RESOURCE_REPORT_INTERVAL_MS。
-   * `readSelfClockMs` 只供单测注入可预期的自证开销时钟；生产走 performance.now。
-   */
+  /** 单测窗口/自证时钟；生产沿用既有采样间隔与 performance.now。 */
   options?: { reportIntervalMs?: number; readSelfClockMs?: () => number },
 ): void {
   stopDesktopResourceTelemetry();
+  // 原本本地内存日志借用资源采样节拍；禁用上报后仍保留本地诊断，不采集角色遥测。
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) {
+    sampleTimer = setInterval(() => {
+      const memory = readMainMemoryUsage();
+      if (memory) logMemorySample(logger, memory, []);
+    }, RESOURCE_SAMPLE_INTERVAL_MS * MEMORY_LOG_SAMPLE_EVERY_N_TICKS);
+    sampleTimer.unref();
+    return;
+  }
   agentMetricProbeDisabledAuditLogged = false;
   memoryLogTick = 0;
   memorySampleWriteGate = createMemorySampleWriteGate();
@@ -489,7 +499,7 @@ export function stopDesktopResourceTelemetry(options?: {
     clearInterval(reportTimer);
     reportTimer = null;
   }
-  if (options?.flushPendingWindows) {
+  if (DESKTOP_PRODUCT_CAPABILITIES.telemetry && options?.flushPendingWindows) {
     // Bug 根因：改成 5 分钟聚合后，正常退出仍沿用直接 clear 的旧 stop，
     // 导致已收到但未满窗口的样本静默丢失。这里只排空内存窗口，不触发新采样或磁盘扫描。
     drainAllResourceWindows();

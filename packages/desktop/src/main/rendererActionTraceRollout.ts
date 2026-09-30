@@ -1,3 +1,4 @@
+import { DESKTOP_PRODUCT_CAPABILITIES } from "./productCapabilities.js";
 import {
   DISABLED_RENDERER_ACTION_TRACE_CONFIG,
   rendererActionTraceConfigSchema,
@@ -63,6 +64,13 @@ export function createRendererActionTraceRollout(options: {
   timeoutMs?: number;
   cacheTtlMs?: number;
 }): RendererActionTraceRollout {
+  // 产品能力必须先于环境、旧配置和遥测副作用裁决。
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry)
+    return {
+      getSnapshot: () => DISABLED_RENDERER_ACTION_TRACE_CONFIG,
+      refresh: async () => DISABLED_RENDERER_ACTION_TRACE_CONFIG,
+      awaitFirstDecision: async () => DISABLED_RENDERER_ACTION_TRACE_CONFIG,
+    };
   return createSingleFeatureRollout<RendererActionTraceConfigV1>({
     resolveConfig: resolveRendererActionTraceConfig,
     defaultValue: { ...DISABLED_RENDERER_ACTION_TRACE_CONFIG },

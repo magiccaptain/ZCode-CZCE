@@ -1,6 +1,6 @@
 import { APP_UPDATES_UNAVAILABLE, type ProductCapabilities } from "@zcode/shared";
 
-/** 唯一的 Desktop 产品范围来源；本 PR 仅落实 appUpdates，其余关闭路径由后续 PR 接入。 */
+/** 唯一的 Desktop 产品范围来源；更新与 Desktop 遥测已接入执行 guard，其余关闭路径由后续 Issue 接入。 */
 export const DESKTOP_PRODUCT_CAPABILITIES: ProductCapabilities = Object.freeze({
   localAgent: true,
   localProviderConfig: true,

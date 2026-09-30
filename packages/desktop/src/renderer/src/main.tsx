@@ -309,6 +309,7 @@ function initializeBusinessRoot(port: MessagePort): void {
   const settingService = supportsSettings ? services.settingService : undefined;
 
   syncAppTelemetryContext({
+    productCapabilities: desktopPlatform.productCapabilities,
     bridge: {
       syncTelemetryContext: (context) => window.zcode.syncTelemetryContext(context),
     },

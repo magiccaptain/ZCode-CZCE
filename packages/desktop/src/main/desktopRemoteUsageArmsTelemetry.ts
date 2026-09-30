@@ -1,3 +1,4 @@
+import { DESKTOP_PRODUCT_CAPABILITIES } from "./productCapabilities.js";
 import type {
   ArmsCustomEventPayload,
   ArmsRumEnv,
@@ -111,6 +112,8 @@ function buildRemoteDisconnectArmsPayload(params: {
 }
 
 export function configureRemoteUsageArmsTelemetry(config: RemoteUsageArmsTelemetryConfig): void {
+  // 产品能力必须先于环境、旧配置和遥测副作用裁决。
+  if (!DESKTOP_PRODUCT_CAPABILITIES.telemetry) return;
   stopRemoteUsageArmsPeriodicSampling();
   telemetryConfig = config;
   const schedule = config.setInterval ?? setInterval;
