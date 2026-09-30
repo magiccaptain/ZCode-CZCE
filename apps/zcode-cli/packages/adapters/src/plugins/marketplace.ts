@@ -43,6 +43,11 @@ import {
   isCommandUnavailableError,
 } from "./source-errors.js";
 
+import {
+  assertPluginMarketplaceEnabled,
+  isPluginMarketplaceEnabled,
+} from "./product-capability.js";
+
 const execFileAsync = promisify(execFile);
 const KNOWN_MARKETPLACES_FILE = "known_marketplaces.json";
 const INSTALLED_PLUGINS_FILE = "installed_plugins.json";
@@ -219,6 +224,7 @@ interface CachedMarketplacePluginResult {
 }
 
 export async function parseMarketplaceSourceInput(input: string): Promise<MarketplaceSource> {
+  assertPluginMarketplaceEnabled();
   const trimmed = input.trim();
   if (trimmed.length === 0) {
     throw new Error("Marketplace source is empty");
@@ -278,6 +284,8 @@ export function loadKnownMarketplacesSync(storageRoot: string): KnownMarketplace
 
 export function ensureDefaultPluginMarketplaces(storageRoot: string): KnownMarketplaceRecord[] {
   const known = loadKnownMarketplacesSync(storageRoot);
+  // 禁用后保留历史，只读 loader 不能为目录浏览重新注册默认来源。
+  if (!isPluginMarketplaceEnabled()) return known;
   const existingIds = new Set(known.map((record) => record.id));
   const now = new Date().toISOString();
   const missing = DEFAULT_PLUGIN_MARKETPLACES.filter(
@@ -304,6 +312,7 @@ export async function ensureMarketplaceManifestAvailable(input: {
   signal?: AbortSignal;
   storageRoot: string;
 }): Promise<KnownMarketplaceRecord | null> {
+  assertPluginMarketplaceEnabled();
   throwIfPluginOperationAborted(input.signal);
   ensureDefaultPluginMarketplaces(input.storageRoot);
   if (loadMarketplaceManifestSync(input.storageRoot, input.marketplace)) {
@@ -339,6 +348,7 @@ export async function addMarketplace(input: {
   // 非官方 manifest 名不受此约束，保持既有行为。
   trustedId?: string;
 }): Promise<KnownMarketplaceRecord> {
+  assertPluginMarketplaceEnabled();
   // persist:false 先只解析 manifest，不落盘——否则 marketplace 目录激活会用
   // 不可信 manifest.name 作为 target，先 rm 掉本地官方目录再 cp，等守卫抛错时
   // 官方 manifest 已被污染；守卫通过后才持久化。
@@ -498,6 +508,7 @@ export async function updateMarketplace(input: {
   signal?: AbortSignal;
   storageRoot: string;
 }): Promise<KnownMarketplaceRecord[]> {
+  assertPluginMarketplaceEnabled();
   ensureDefaultPluginMarketplaces(input.storageRoot);
   const known = loadKnownMarketplacesSync(input.storageRoot);
   const selected = input.marketplace
@@ -540,6 +551,7 @@ export async function removeMarketplace(input: {
   marketplace: string;
   storageRoot: string;
 }): Promise<void> {
+  assertPluginMarketplaceEnabled();
   const known = loadKnownMarketplacesSync(input.storageRoot).filter(
     (record) => record.id !== input.marketplace,
   );
@@ -592,6 +604,7 @@ export async function installMarketplacePlugin(input: {
   scope?: "user" | "workspace";
   allowCrossMarketplaces?: ReadonlySet<string>;
 }): Promise<MarketplaceInstallResult> {
+  assertPluginMarketplaceEnabled();
   await ensureMarketplaceManifestAvailable({
     marketplace: input.marketplace,
     signal: input.signal,
@@ -674,6 +687,7 @@ export async function validateMarketplacePlugin(input: {
   name: string;
   storageRoot: string;
 }): Promise<PluginValidationDiagnostic[]> {
+  assertPluginMarketplaceEnabled();
   const diagnostics: PluginValidationDiagnostic[] = [];
   try {
     await ensureMarketplaceManifestAvailable({
@@ -748,6 +762,7 @@ export async function describeMarketplacePlugin(input: {
   name: string;
   storageRoot: string;
 }): Promise<DescribeMarketplacePluginResult> {
+  assertPluginMarketplaceEnabled();
   const diagnostics: PluginValidationDiagnostic[] = [];
   const pluginId = `${input.name}@${input.marketplace}`;
 
@@ -889,6 +904,7 @@ export async function validateMarketplaceSource(input: {
   source: MarketplaceSource;
   storageRoot: string;
 }): Promise<PluginValidationDiagnostic[]> {
+  assertPluginMarketplaceEnabled();
   const diagnostics: PluginValidationDiagnostic[] = [];
   let loaded: LoadMarketplaceResult | null = null;
   try {

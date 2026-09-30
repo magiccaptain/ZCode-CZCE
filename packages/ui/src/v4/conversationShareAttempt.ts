@@ -1,3 +1,5 @@
+import type { ProductCapabilities } from "@zcode/shared";
+import { ConversationShareServiceError, CONVERSATION_SHARING_UNAVAILABLE } from "@zcode/services";
 import type { ConversationShareAttempt } from "@/store/conversationShareSelectionStore.js";
 
 export type { ConversationShareAttempt } from "@/store/conversationShareSelectionStore.js";
@@ -12,7 +14,11 @@ export function ensureConversationShareAttempt(
   attemptKey: string,
   sessionId: string,
   factory: ConversationShareAttemptIdFactory = {},
+  capabilities?: Readonly<Partial<Pick<ProductCapabilities, "sharing">>>,
 ): ConversationShareAttempt {
+  // 旧 intent/重试幂等键也不能绕过产品 admission。
+  if (capabilities?.sharing === false)
+    throw new ConversationShareServiceError("feature_disabled", CONVERSATION_SHARING_UNAVAILABLE);
   if (current?.key === attemptKey) return current;
 
   const now = factory.now ?? Date.now;

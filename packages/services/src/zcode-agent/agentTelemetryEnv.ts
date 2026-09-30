@@ -1,7 +1,7 @@
 import { isZCodeAgentTelemetryEnvKey, type ProductCapabilities } from "@zcode/shared";
 
 interface BuildAgentTelemetrySpawnEnvInput {
-  productCapabilities?: Readonly<Pick<ProductCapabilities, "telemetry">>;
+  productCapabilities?: Readonly<Partial<Pick<ProductCapabilities, "telemetry">>>;
   telemetryEnv: Record<string, string>;
   deviceMid?: string;
   userId?: string;

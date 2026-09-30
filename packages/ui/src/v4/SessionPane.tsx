@@ -553,6 +553,7 @@ export function SessionPane({
     fileRewindPreview,
   } = useV4Conversation();
   const platform = useOptionalPlatform();
+  const sharingEnabled = platform?.productCapabilities?.sharing !== false;
   const { conversationShareService, modelSelectionService, zcodeSessionService, zcodeTaskService } =
     useServices();
   const { intl, locale } = useZCodeIntl();
@@ -595,10 +596,10 @@ export function SessionPane({
   const snapshot = state.snapshot;
   const newlyCreatedSessionIdRef = useRef<string | null>(null);
   const shareDraft = useConversationShareSelectionStore((storeState) =>
-    sessionId ? storeState.drafts[sessionId] : undefined,
+    sharingEnabled && sessionId ? storeState.drafts[sessionId] : undefined,
   );
   const shareDockState = useConversationShareSelectionStore((storeState) =>
-    sessionId ? storeState.dockStates[sessionId] : undefined,
+    sharingEnabled && sessionId ? storeState.dockStates[sessionId] : undefined,
   );
   const shareDock = shareDockState ?? DEFAULT_CONVERSATION_SHARE_DOCK_STATE;
   const shareTitle = shareDock.title ?? snapshot?.meta.title?.trim() ?? sessionId ?? "";
@@ -3800,10 +3801,10 @@ export function SessionPane({
     workspacePath,
   ]);
   const handleOpenImportedShareUrl = useCallback(() => {
-    if (!shareHandoverContext || !onOpenBrowserUrl) return;
+    if (!sharingEnabled || !shareHandoverContext || !onOpenBrowserUrl) return;
     // 持久化的是规范 /cn/share/ 路径；展示/打开时才按界面语言本地化。
     onOpenBrowserUrl(localizeConversationShareUrl(shareHandoverContext.shareUrl, locale));
-  }, [locale, onOpenBrowserUrl, shareHandoverContext]);
+  }, [locale, onOpenBrowserUrl, shareHandoverContext, sharingEnabled]);
   const initialDraftConfigForDiagnostics = isDraft ? resolveInitialDraftConfig() : undefined;
   // CLI V4 projection 是 running/count/manifest 的唯一权威；renderer 不再在 spawn
   // 事件后另发查询拼接第二份状态，避免并发 child 的 in-flight refresh 丢更新。
@@ -4023,7 +4024,8 @@ export function SessionPane({
   ]);
 
   const handleConfirmShareDisclosure = useCallback(async () => {
-    if (!sessionId || !shareDraft || sharePublishing) return;
+    // 旧 selection 或重试回调也必须在 preflight/progress/publish 前拒绝。
+    if (!sharingEnabled || !sessionId || !shareDraft || sharePublishing) return;
     const productTurnIds = getConversationShareSelectedProductTurnIds(
       useConversationShareSelectionStore.getState(),
       sessionId,
@@ -4042,6 +4044,7 @@ export function SessionPane({
       attemptKey,
       sessionId,
       { randomUUID: () => globalThis.crypto?.randomUUID?.() },
+      platform?.productCapabilities,
     );
     const operationId = `share-operation-${globalThis.crypto?.randomUUID?.() ?? Date.now()}`;
     let activePhase = "collecting";
@@ -4158,6 +4161,8 @@ export function SessionPane({
     }
   }, [
     conversationShareService,
+    platform?.productCapabilities,
+    sharingEnabled,
     intl,
     remoteSessionId,
     sessionId,
@@ -4180,10 +4185,10 @@ export function SessionPane({
   }, [intl, publishedShareUrl]);
 
   const handleOpenPublishedShare = useCallback(() => {
-    if (!publishedShareUrl || !onOpenBrowserUrl) return;
+    if (!sharingEnabled || !publishedShareUrl || !onOpenBrowserUrl) return;
     // 服务端保存规范 /cn/share/ 路径；打开时再按当前界面语言切换落地页路径。
     onOpenBrowserUrl(localizeConversationShareUrl(publishedShareUrl, locale));
-  }, [locale, onOpenBrowserUrl, publishedShareUrl]);
+  }, [locale, onOpenBrowserUrl, publishedShareUrl, sharingEnabled]);
 
   const handleCopyShareRequestId = useCallback(() => {
     const requestId = shareError?.requestId;
@@ -4623,18 +4628,22 @@ export function SessionPane({
         ref={conversationLayoutContainerRef}
         className="@container/conversation relative flex min-h-0 flex-1 flex-col"
       >
-        <ConversationShareSelectionScrim
-          visible={shareSelectionPanelVisible}
-          interactive
-          onBackdropClick={dismissShareSelectionPanel}
-        />
-        <ConversationShareSelectionPanel
-          visible={shareSelectionPanelVisible}
-          items={shareItems}
-          selectedRowIds={selectedShareRowIds}
-          onToggle={handleShareSelectionToggle}
-          onInspect={handleShareSelectionInspect}
-        />
+        {sharingEnabled ? (
+          <>
+            <ConversationShareSelectionScrim
+              visible={shareSelectionPanelVisible}
+              interactive
+              onBackdropClick={dismissShareSelectionPanel}
+            />
+            <ConversationShareSelectionPanel
+              visible={shareSelectionPanelVisible}
+              items={shareItems}
+              selectedRowIds={selectedShareRowIds}
+              onToggle={handleShareSelectionToggle}
+              onInspect={handleShareSelectionInspect}
+            />
+          </>
+        ) : null}
         {shareActive && shareInSelectionStage && shareDraft?.view === "timeline" && sessionId ? (
           <ConversationShareSelectionReopenTab onOpen={() => showShareSelectionPanel(sessionId)} />
         ) : null}
@@ -4777,7 +4786,9 @@ export function SessionPane({
                     locale={locale}
                     theme={theme}
                     codePreviewSettings={codePreviewSettings}
-                    onOpenShareUrl={onOpenBrowserUrl ? handleOpenImportedShareUrl : undefined}
+                    onOpenShareUrl={
+                      sharingEnabled && onOpenBrowserUrl ? handleOpenImportedShareUrl : undefined
+                    }
                     onOpenFileLink={onOpenFileLink}
                     onOpenCodeViewer={onOpenCodeViewer}
                   />

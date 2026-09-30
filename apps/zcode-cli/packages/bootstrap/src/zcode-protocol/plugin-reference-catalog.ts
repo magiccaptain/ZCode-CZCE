@@ -12,6 +12,10 @@ import {
   type ZCodePluginsResolveSuggestedReferenceResult,
 } from "@zcode/shared";
 import type { PluginReferenceCatalogEntry } from "@zcode/contracts";
+import {
+  assertPluginMarketplaceEnabled,
+  isPluginMarketplaceEnabled,
+} from "@zcode/adapters/plugins";
 import { buildPluginReferenceCatalog } from "@zcode/core";
 import {
   getZCodePluginsOverview,
@@ -68,6 +72,7 @@ export async function resolveSuggestedPluginReference(
   rawParams: unknown,
   signal?: AbortSignal,
 ): Promise<ZCodePluginsResolveSuggestedReferenceResult> {
+  assertPluginMarketplaceEnabled();
   const params = parseParams(zcodePluginsResolveSuggestedReferenceParamsSchema, rawParams);
   const stableId = params.stableId.trim();
   const at = stableId.lastIndexOf("@");
@@ -237,6 +242,8 @@ interface PluginReferenceListingDisplay {
 function resolveReferenceListingDisplayByPluginId(
   workspacePath: string,
 ): Map<string, PluginReferenceListingDisplay> {
+  // 市场关闭不影响冻结身份 catalog；不借展示 listing 触发禁用的目录读取。
+  if (!isPluginMarketplaceEnabled()) return new Map();
   const overview = getZCodePluginsOverview({ workingDirectory: workspacePath });
   const displayByPluginId = new Map<string, PluginReferenceListingDisplay>();
   for (const plugin of [

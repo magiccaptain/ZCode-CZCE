@@ -15,6 +15,7 @@ import {
 } from "@zcode/adapters/config";
 import {
   addMarketplace,
+  assertPluginMarketplaceEnabled,
   comparePluginUpdate,
   describeMarketplacePlugin,
   ensureDefaultPluginMarketplaces,
@@ -269,6 +270,7 @@ export function resolveZCodePlugins(options: ResolveZCodePluginsOptions = {}): P
 export function getZCodePluginsOverview(
   options: ResolveZCodePluginsOptions = {},
 ): ZCodePluginsOverviewData {
+  assertPluginMarketplaceEnabled();
   const { configResult, pluginStorageRoot, workingDirectory } = resolvePluginContext(options);
   ensureDefaultPluginMarketplaces(pluginStorageRoot);
   const outcome = resolveZCodePlugins({
@@ -335,28 +337,7 @@ export function getZCodePluginsOverview(
   );
   const loadedById = new Map(outcome.plugins.map((plugin) => [plugin.id, plugin]));
 
-  // 被抑制（uninstall）的内置（官方）插件可一键恢复：从 OFFICIAL_PLUGIN_DEFINITIONS
-  // 里挑出 id 落在 suppressedBuiltins 集合内的，映射成 available 形态供 UI 的「恢复」入口使用。
-  // 完整 Catalog/cache 仍然保留，restorable 只是 Runtime 抑制态的投影，商店信息直接取定义里的 listing seed。
-  const suppressed = new Set(configResult.config.plugins.suppressedBuiltins);
-  const restorableBuiltins: ZCodeAvailablePluginData[] = OFFICIAL_PLUGIN_DEFINITIONS.filter(
-    (def) =>
-      suppressed.has(`${def.name}@${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE}`) &&
-      // computer-use 的恢复入口需要 internal 特性开启（与 restoreBuiltinPluginCore 同口径）。
-      (def.name !== "computer-use" || isZCodeCuaInternalFeatureEnabled(options.env ?? process.env)),
-  ).map((def) => {
-    const listing = def.listing
-      ? parseEntryStoreListing({ name: def.name, ...def.listing })
-      : undefined;
-    return {
-      id: `${def.name}@${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE}`,
-      name: def.name,
-      marketplace: ZCODE_OFFICIAL_PLUGIN_MARKETPLACE,
-      version: def.version,
-      installed: false,
-      ...(listing ? { listing } : {}),
-    };
-  });
+  const restorableBuiltins = listRestorableBuiltinPlugins({ ...options, configResult });
 
   return {
     marketplaces: catalogs.map((catalog) => catalog.summary),
@@ -400,6 +381,35 @@ export function getZCodePluginsOverview(
       ),
     ],
   };
+}
+
+/** 离线 inventory 复用原 suppression owner：卸载后不能因市场关闭而丢失恢复入口。 */
+export function listRestorableBuiltinPlugins(
+  options: ResolveZCodePluginsOptions = {},
+): ZCodeAvailablePluginData[] {
+  // 被抑制（uninstall）的内置（官方）插件可一键恢复：从 OFFICIAL_PLUGIN_DEFINITIONS
+  // 里挑出 id 落在 suppressedBuiltins 集合内的，映射成 available 形态供 UI 的「恢复」入口使用。
+  // 完整 Catalog/cache 仍然保留，restorable 只是 Runtime 抑制态的投影，商店信息直接取定义里的 listing seed。
+  const { configResult } = resolvePluginContext(options);
+  const suppressed = new Set(configResult.config.plugins.suppressedBuiltins);
+  return OFFICIAL_PLUGIN_DEFINITIONS.filter(
+    (def) =>
+      suppressed.has(`${def.name}@${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE}`) &&
+      // computer-use 的恢复入口需要 internal 特性开启（与 restoreBuiltinPluginCore 同口径）。
+      (def.name !== "computer-use" || isZCodeCuaInternalFeatureEnabled(options.env ?? process.env)),
+  ).map((def) => {
+    const listing = def.listing
+      ? parseEntryStoreListing({ name: def.name, ...def.listing })
+      : undefined;
+    return {
+      id: `${def.name}@${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE}`,
+      name: def.name,
+      marketplace: ZCODE_OFFICIAL_PLUGIN_MARKETPLACE,
+      version: def.version,
+      installed: false,
+      ...(listing ? { listing } : {}),
+    };
+  });
 }
 
 export function listZCodePlugins(options: ListZCodePluginsOptions = {}): PluginLoadOutcome {
@@ -474,6 +484,7 @@ export async function setZCodePluginEnabled(
 export async function addZCodePluginMarketplace(
   options: AddZCodeMarketplaceOptions,
 ): Promise<ZCodeMarketplaceSummaryData> {
+  assertPluginMarketplaceEnabled();
   const { pluginStorageRoot } = resolvePluginContext(options);
   const source = applySparsePaths(
     await parseMarketplaceSourceInput(options.source),
@@ -499,6 +510,7 @@ export async function addZCodePluginMarketplace(
 export async function removeZCodePluginMarketplace(
   options: RemoveZCodeMarketplaceOptions,
 ): Promise<void> {
+  assertPluginMarketplaceEnabled();
   const { pluginStorageRoot } = resolvePluginContext(options);
   await removeMarketplace({
     marketplace: options.marketplace,
@@ -509,6 +521,7 @@ export async function removeZCodePluginMarketplace(
 export async function updateZCodePluginMarketplace(
   options: UpdateZCodeMarketplaceOptions,
 ): Promise<ZCodeMarketplaceUpdateData> {
+  assertPluginMarketplaceEnabled();
   const { configResult, pluginStorageRoot, workingDirectory } = resolvePluginContext(options);
   ensureDefaultPluginMarketplaces(pluginStorageRoot);
   const declared = resolveDeclaredMarketplaceSources({
@@ -590,6 +603,7 @@ export async function updateZCodePluginMarketplace(
 export async function installZCodeMarketplacePlugin(
   options: InstallZCodeMarketplacePluginOptions,
 ): Promise<ZCodePluginInstallData> {
+  assertPluginMarketplaceEnabled();
   const { configResult, pluginStorageRoot, workingDirectory } = resolvePluginContext(options);
   ensureDefaultPluginMarketplaces(pluginStorageRoot);
   if (options.dryRun === true) {
@@ -829,6 +843,7 @@ export async function uninstallZCodeMarketplacePlugin(
 export async function updateZCodeMarketplacePlugin(
   options: UpdateZCodeMarketplacePluginOptions,
 ): Promise<ZCodePluginUpdateData> {
+  assertPluginMarketplaceEnabled();
   const { pluginStorageRoot } = resolvePluginContext(options);
   const record = listInstalledPluginRecords(pluginStorageRoot).find(
     (installed) => installed.id === options.pluginId,
@@ -954,6 +969,7 @@ export async function resetZCodePluginConfig(
 export async function validateZCodePlugin(
   options: ValidateZCodePluginOptions,
 ): Promise<PluginLoadOutcome["diagnostics"]> {
+  assertPluginMarketplaceEnabled();
   const { pluginStorageRoot } = resolvePluginContext(options);
   ensureDefaultPluginMarketplaces(pluginStorageRoot);
   if (options.source) {
@@ -1005,6 +1021,7 @@ export async function validateZCodePlugin(
 export async function describeZCodePlugin(
   options: DescribeZCodePluginOptions,
 ): Promise<DescribeMarketplacePluginResult> {
+  assertPluginMarketplaceEnabled();
   const { pluginStorageRoot } = resolvePluginContext(options);
   ensureDefaultPluginMarketplaces(pluginStorageRoot);
   return describeMarketplacePlugin({

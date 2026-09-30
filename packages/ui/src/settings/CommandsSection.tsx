@@ -1,3 +1,4 @@
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 /* eslint-disable max-lines -- 命令管理面板集中维护列表、表单和外部导入入口，拆分会增加跨状态跳转成本 */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
@@ -62,6 +63,7 @@ export function CommandsSection({
   onFormScopeKeyChange,
 }: CommandsSectionProps) {
   const { intl, locale } = useZCodeIntl();
+  const platform = useOptionalPlatform();
   const confirmDialog = useConfirmDialog();
 
   const currentWorkspaceKey = workspaceIdentity?.trim() || workspacePath || "";
@@ -145,6 +147,7 @@ export function CommandsSection({
       workspaceIdentity,
       configScope: scopeFilter,
       pluginService: pluginManagementService,
+      productCapabilities: platform?.productCapabilities,
     });
   }, [
     initializePlugins,

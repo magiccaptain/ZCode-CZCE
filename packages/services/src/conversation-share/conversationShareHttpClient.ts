@@ -29,11 +29,13 @@ import {
   type ConversationSharePreparationRequest,
   type ConversationSharePreview,
   type ConversationShareRecord,
+  type ProductCapabilities,
 } from "@zcode/shared";
 import type { z } from "zod";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import { REQUEST_ID_HEADER_NAME, withRequestIdHeader } from "../providers/api/requestIdHeaders.js";
 import { verifyConversationShareIntegrity } from "./conversationShareIntegrity.js";
+import { CONVERSATION_SHARING_UNAVAILABLE } from "./conversationShare.js";
 
 const log = createServiceLogger("conversation-share-http");
 
@@ -208,6 +210,7 @@ function normalizeRequestId(value: string | null | undefined): string | undefine
 }
 
 interface ConversationShareHttpClientOptions {
+  productCapabilities?: Readonly<Partial<Pick<ProductCapabilities, "sharing">>>;
   apiClient: ApiClient;
   baseUrl: string;
   tokenProvider: () => Promise<string | null>;
@@ -225,6 +228,7 @@ function parseJson(text: string): unknown {
 }
 
 export class ConversationShareHttpClient {
+  private readonly sharingEnabled: boolean;
   private readonly apiClient: ApiClient;
   private readonly baseUrl: string;
   private readonly tokenProvider: () => Promise<string | null>;
@@ -232,6 +236,7 @@ export class ConversationShareHttpClient {
   private readonly confirmTimeoutMs: number;
 
   constructor(options: ConversationShareHttpClientOptions) {
+    this.sharingEnabled = options.productCapabilities?.sharing !== false;
     this.apiClient = options.apiClient;
     this.baseUrl = options.baseUrl;
     this.tokenProvider = options.tokenProvider;
@@ -260,9 +265,10 @@ export class ConversationShareHttpClient {
     return capabilities;
   }
 
-  createPreparation(
+  async createPreparation(
     input: ConversationSharePreparationRequest,
   ): Promise<ConversationSharePreparation> {
+    this.assertSharingEnabled();
     const body = conversationSharePreparationRequestSchema.parse(input);
     return this.requestData(
       "/shares/preparations",
@@ -272,11 +278,12 @@ export class ConversationShareHttpClient {
     );
   }
 
-  uploadArtifact(
+  async uploadArtifact(
     preparationId: string,
     descriptor: ConversationShareArtifactDescriptor,
     file: Blob,
   ): Promise<ConversationShareArtifactUpload> {
+    this.assertSharingEnabled();
     const parsedDescriptor = conversationShareArtifactDescriptorSchema.parse(descriptor);
     // 安全边界：只记录公开 ID、类型与字节数，不记录 descriptor、文件名、路径、正文或鉴权头。
     log.debug(undefined, "conversation share artifact upload prepared", {
@@ -297,10 +304,11 @@ export class ConversationShareHttpClient {
     );
   }
 
-  confirm(
+  async confirm(
     preparationId: string,
     input: ConversationShareConfirmRequest,
   ): Promise<ConversationShareRecord> {
+    this.assertSharingEnabled();
     const body = conversationShareConfirmRequestSchema.parse(input);
     return this.requestData(
       `/shares/preparations/${encodeURIComponent(preparationId)}/confirm`,
@@ -327,6 +335,7 @@ export class ConversationShareHttpClient {
     shareCode: string,
     input: ConversationShareContinuationRequest,
   ): Promise<ConversationShareContinuation> {
+    this.assertSharingEnabled();
     const body = conversationShareContinuationRequestSchema.parse(input);
     const wire = await this.requestData(
       `/shares/${encodeURIComponent(shareCode)}/continuation`,
@@ -401,6 +410,16 @@ export class ConversationShareHttpClient {
     };
   }
 
+  private assertSharingEnabled(): void {
+    // HTTP 直达旧请求也不可绕过产品规则，必须早于鉴权、表单准备与网络执行。
+    if (!this.sharingEnabled) {
+      throw new ConversationShareClientError({
+        kind: "feature_disabled",
+        message: CONVERSATION_SHARING_UNAVAILABLE,
+      });
+    }
+  }
+
   private async requestData<T>(
     path: string,
     init: ApiRequestInit,
@@ -408,6 +427,7 @@ export class ConversationShareHttpClient {
     auth: "required" | "optional",
     timeoutMsOverride?: number,
   ): Promise<T> {
+    this.assertSharingEnabled();
     const token = (await this.tokenProvider())?.trim() || null;
     if (auth === "required" && !token) {
       throw new ConversationShareClientError({

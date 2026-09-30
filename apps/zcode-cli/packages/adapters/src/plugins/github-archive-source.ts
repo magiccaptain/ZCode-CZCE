@@ -1,3 +1,4 @@
+import { assertPluginMarketplaceEnabled } from "./product-capability.js";
 import { readFile, readdir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import {
@@ -82,6 +83,7 @@ function buildGitHubArchiveUrl(repository: PublicGitHubRepository, pin = "HEAD")
 export async function resolveGitHubArchiveSource(
   input: ResolveGitHubArchiveSourceInput,
 ): Promise<ResolvedZipPluginSourceRoot> {
+  assertPluginMarketplaceEnabled();
   const repository = parsePublicGitHubRepositoryUrl(input.url);
   if (!repository) {
     throw new GitHubArchiveRequiresGitError(

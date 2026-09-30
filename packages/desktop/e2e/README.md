@@ -79,3 +79,11 @@ E2E 报告与脱敏日志写入忽略的 `.e2e-artifacts/telemetry-*/`，核心�
 - 核心回归仍使用 `e2e:baseline --key-file <仓库外私有文件> --extensions --telemetry`；真实执行本地模型、工具、权限、追加、停止、恢复、用户级/工作区级 Skills 和 stdio/带测试鉴权 HTTP MCP。
 
 结果位于忽略的 `.e2e-artifacts/account-*/`（报告、设置截图、脱敏日志）。账号专项不发送外部模型请求，不替代有凭据的核心回归、真实 MCP OAuth 浏览器闭环或安装包验证；当前运行平台 Linux x64。冷启动仍遵守原本的新任务/工作区语义，不让测试假定自动激活先前本地 workspace。最终证据见 `specs/desktop-local-fork/issue3-results.md`。
+
+## Issue #4 市场/分享执行与保留资源
+
+- `pnpm exec tsx --tsconfig packages/ui/tsconfig.json --test packages/ui/test/*.test.* packages/services/test/*.test.ts packages/desktop/test/*.test.*`：包含市场服务/管理 Agent admission、实际 CLI bootstrap/adapters 与编译后的 app-server、source archive、分享 HTTP/服务/Host attachment、UI hooks/store 与同源 Desktop 服务装配。计数器断言请求/Agent 命令为零，旧数据保留；本地 manifest/内置播种/管理、离线导入副本、用户/工作区 Skills 和 MCP 配置沿原 owner 工作。
+- `pnpm exec tsx packages/ui/test/productMarketplaceSharing.e2e.mjs`：无模型凭据，重建实际 Agent/Main/Host/preload/Renderer。带旧个人来源及 share marker/index/附件首次启动并正常重启；操作 Plugins/Skills/MCP/Subagents/本地模型设置；在 Plugins User 页实际卸载 Browser Use、刷新、正常退出重启，再用独立离线恢复入口恢复，核验 suppression 清除与插件重新出现。注入旧市场 DOM event，通过 Main 原生 share 深链路由投递旧 intent，断言无商店/来源/分享入口、不创建新 share 目录；localhost 市场 fixture 与 Renderer share 请求为零，旧源声明和分享文件保持，两次退出 0。
+- 前缀 `ZCODE_MARKET_SHARE_E2E_ENV=production` 执行正式身份，否则 test。此专项观察本机 fixture/Renderer 请求，不冒充全进程全流量抓包或完整模型/Skills/MCP 执行；真实核心回归仍执行 `e2e:baseline --key-file <仓库外私有文件> --extensions --telemetry`。
+
+专项报告、build hash、截图与脱敏日志位于忽略的 `.e2e-artifacts/market-share-ui-*/`；临时数据只包含测试 fixture，不使用真实账号。当前实测 Linux x64；本 Issue 未验证安装包、Windows/macOS 或真实 MCP OAuth 浏览器授权，完整结果见 `specs/desktop-local-fork/issue4-results.md`。

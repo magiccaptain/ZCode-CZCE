@@ -1354,7 +1354,9 @@ export function SettingsPage({
     id: activeSectionMeta.contentTitleId ?? activeSectionMeta.titleId,
   });
   const settingsBreadcrumbSectionLabel =
-    activeSection === "plugin" && pluginNavigationOrigin === "plugin-store"
+    activeSection === "plugin" &&
+    platform.productCapabilities?.pluginMarketplace !== false &&
+    pluginNavigationOrigin === "plugin-store"
       ? intl.formatMessage({ id: "workspace.openPluginsSettings" })
       : activeSectionLabel;
   const visibleSettingsBreadcrumbItems =
@@ -1364,7 +1366,9 @@ export function SettingsPage({
   const hasVisibleSettingsBreadcrumb = visibleSettingsBreadcrumbItems.length >= 2;
   const showActiveSectionTitle =
     !hasVisibleSettingsBreadcrumb ||
-    (activeSection === "plugin" && pluginNavigationOrigin === "plugin-store");
+    (activeSection === "plugin" &&
+      platform.productCapabilities?.pluginMarketplace !== false &&
+      pluginNavigationOrigin === "plugin-store");
 
   return (
     <>
@@ -1421,8 +1425,11 @@ export function SettingsPage({
                             trigger: "button",
                           },
                           operation: () => {
-                            if (pluginNavigationOrigin === "plugin-store") {
-                              requestPluginStoreOpen("user");
+                            if (
+                              platform.productCapabilities?.pluginMarketplace !== false &&
+                              pluginNavigationOrigin === "plugin-store"
+                            ) {
+                              requestPluginStoreOpen("user", platform.productCapabilities);
                             }
                             onBack?.();
                           },
@@ -1849,11 +1856,18 @@ export function SettingsPage({
                             initialScopeKey={pluginScopeKey}
                             workspacePath={activeWorkspacePath}
                             workspaceIdentity={activeWorkspaceIdentity}
-                            showMarketplaceBreadcrumb={pluginNavigationOrigin === "plugin-store"}
+                            showMarketplaceBreadcrumb={
+                              platform.productCapabilities?.pluginMarketplace !== false &&
+                              pluginNavigationOrigin === "plugin-store"
+                            }
                             onCreateTask={onCreateTask}
                             onOpenPluginStore={(_returnScopeKey, intent) => {
+                              if (platform.productCapabilities?.pluginMarketplace === false) return;
                               // 添加市场与浏览插件都先离开设置层，再显示商店。
-                              requestPluginStoreOpen({ returnScopeKey: "user", intent });
+                              requestPluginStoreOpen(
+                                { returnScopeKey: "user", intent },
+                                platform.productCapabilities,
+                              );
                               onBack?.();
                             }}
                           />
@@ -1865,8 +1879,12 @@ export function SettingsPage({
                             workspaceIdentity={activeWorkspaceIdentity}
                             onCreateTask={onCreateTask}
                             onOpenPluginStore={(_returnScopeKey, intent) => {
+                              if (platform.productCapabilities?.pluginMarketplace === false) return;
                               // 添加市场与浏览插件都先离开设置层，再显示商店。
-                              requestPluginStoreOpen({ returnScopeKey: "user", intent });
+                              requestPluginStoreOpen(
+                                { returnScopeKey: "user", intent },
+                                platform.productCapabilities,
+                              );
                               onBack?.();
                             }}
                           />
@@ -1878,8 +1896,12 @@ export function SettingsPage({
                             workspaceIdentity={activeWorkspaceIdentity}
                             onCreateTask={onCreateTask}
                             onOpenPluginStore={(_returnScopeKey, intent) => {
+                              if (platform.productCapabilities?.pluginMarketplace === false) return;
                               // 添加市场与浏览插件都先离开设置层，再显示商店。
-                              requestPluginStoreOpen({ returnScopeKey: "user", intent });
+                              requestPluginStoreOpen(
+                                { returnScopeKey: "user", intent },
+                                platform.productCapabilities,
+                              );
                               onBack?.();
                             }}
                           />
@@ -1915,8 +1937,12 @@ export function SettingsPage({
                             workspaceIdentity={activeWorkspaceIdentity}
                             onCreateTask={onCreateTask}
                             onOpenPluginStore={(_returnScopeKey, intent) => {
+                              if (platform.productCapabilities?.pluginMarketplace === false) return;
                               // 添加市场与浏览插件都先离开设置层，再显示商店。
-                              requestPluginStoreOpen({ returnScopeKey: "user", intent });
+                              requestPluginStoreOpen(
+                                { returnScopeKey: "user", intent },
+                                platform.productCapabilities,
+                              );
                               onBack?.();
                             }}
                           />

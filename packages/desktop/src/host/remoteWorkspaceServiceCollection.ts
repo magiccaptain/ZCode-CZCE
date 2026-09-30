@@ -66,12 +66,15 @@ import {
   createMemoryService,
   createRemoteConversationShareArtifactSource,
   OAuthCredentialRepo,
+  createPluginManagementService,
+  type PluginMarketplaceCapabilities,
 } from "@zcode/services/node";
 import {
   BIGMODEL_PROVIDER_ID,
   buildRuntimeZCodeApiUrl,
   DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
   type ProviderFamilyDomain,
+  type ProductCapabilities,
   type ZCodeSessionRuntimePreferencesResult,
   ZAI_PROVIDER_ID,
 } from "@zcode/shared";
@@ -81,11 +84,19 @@ import {
   registerRemoteProviderProvisioningExecutor,
 } from "./remoteProviderProvisioningService.js";
 
+import {
+  scopeRemoteMarketplaceAgent,
+  scopeRemoteMarketplaceSync,
+  scopeRemoteLegacyMarketplace,
+} from "./remoteMarketplaceAdmission.js";
+
 const runtimePreferencesLogger = createServiceLogger("remote-runtime-preferences");
 const ZCODE_JWT_TOKEN_KEY = "zcodejwttoken";
 
 export function createRemoteWorkspaceServiceCollection(params: {
-  productCapabilities?: AccountProductCapabilities;
+  productCapabilities?: AccountProductCapabilities &
+    PluginMarketplaceCapabilities &
+    Readonly<Pick<ProductCapabilities, "sharing">>;
   clientConfigService: IClientConfigService;
   connectionServices: IServiceAccessor;
   sourceServices?: ServiceCollection;
@@ -99,6 +110,10 @@ export function createRemoteWorkspaceServiceCollection(params: {
   };
 }): ServiceCollection {
   assertLegacyRemoteWorkspaceRpcContract(params.connectionServices);
+  const remoteAgent = scopeRemoteMarketplaceAgent(
+    params.connectionServices.zcodeAgentService,
+    params.productCapabilities,
+  );
   const localSettingService = createSettingService();
   const localCredentialService = createCredentialService();
   const localAccountProviderCredentialStore = createAccountProviderCredentialStore({
@@ -185,6 +200,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
     accountProviderCredentialStore: localAccountProviderCredentialStore,
   });
   const conversationShareClient = new ConversationShareHttpClient({
+    productCapabilities: params.productCapabilities,
     // 远端 workspace 的分享也必须使用真实 API；本地 Mock 仅用于单测，不生成无法跨进程访问的链接。
     apiClient: localApiClient,
     baseUrl: buildRuntimeZCodeApiUrl(process.env, "/api/v1"),
@@ -194,6 +210,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
         : (await localCredentialService.load(ZCODE_JWT_TOKEN_KEY))?.trim() || null,
   });
   const conversationShareService = new ConversationShareService({
+    productCapabilities: params.productCapabilities,
     zcodeAgentService: params.connectionServices.zcodeAgentService,
     client: conversationShareClient,
     artifactSource: createRemoteConversationShareArtifactSource(
@@ -328,7 +345,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
     .register(ICredentialService, localCredentialService)
     .register(IBroadcastService, localBroadcastService)
     .register(IZCodeTaskService, remoteZCodeTaskService)
-    .register(IZCodeAgentService, params.connectionServices.zcodeAgentService)
+    .register(IZCodeAgentService, remoteAgent)
     .register(IZCodeSessionService, remoteZCodeSessionService)
     .register(IConversationShareService, conversationShareService)
     .register(
@@ -375,10 +392,28 @@ export function createRemoteWorkspaceServiceCollection(params: {
     .register(ISkillsService, params.connectionServices.skillsService)
     .register(ISkillSyncService, params.connectionServices.skillSyncService)
     .register(IMcpSyncService, params.connectionServices.mcpSyncService)
-    .register(IPluginSyncService, params.connectionServices.pluginSyncService)
-    .register(IPluginsService, params.connectionServices.pluginsService)
+    .register(
+      IPluginSyncService,
+      scopeRemoteMarketplaceSync(
+        params.connectionServices.pluginSyncService,
+        params.productCapabilities,
+      ),
+    )
+    .register(
+      IPluginsService,
+      scopeRemoteLegacyMarketplace(
+        params.connectionServices.pluginsService,
+        params.productCapabilities,
+      ),
+    )
     // 远端设置页插件管理也必须打到远端 agent（插件目录在远端文件系统）。
-    .register(IPluginManagementService, params.connectionServices.pluginManagementService)
+    .register(
+      IPluginManagementService,
+      createPluginManagementService({
+        productCapabilities: params.productCapabilities,
+        zcodeAgentService: remoteAgent,
+      }),
+    )
     .register(ICommandsService, params.connectionServices.commandsService)
     .register(ISubagentsService, createSubagentsService({ isDesktopRuntime: true }))
     .register(IHooksService, params.connectionServices.hooksService)

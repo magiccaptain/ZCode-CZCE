@@ -19,3 +19,6 @@ export const productCapabilitiesSchema = z.strictObject({
 
 export type ProductCapabilities = Readonly<z.infer<typeof productCapabilitiesSchema>>;
 export const APP_UPDATES_UNAVAILABLE = "APP_UPDATES_UNAVAILABLE";
+export const PLUGIN_MARKETPLACE_UNAVAILABLE = "PLUGIN_MARKETPLACE_UNAVAILABLE";
+/** Desktop 启动适配传入的只读能力；CLI 在启动时捕获，不从用户配置恢复。 */
+export const PLUGIN_MARKETPLACE_CAPABILITY_ENV = "ZCODE_PRODUCT_PLUGIN_MARKETPLACE_ENABLED";

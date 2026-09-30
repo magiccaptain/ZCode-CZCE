@@ -917,6 +917,7 @@ export function McpSettingsSection({
     }
     void initializePlugins({
       pluginService: services.pluginManagementService,
+      productCapabilities: platform.productCapabilities,
       workspaceIdentity: activeWorkspaceIdentity,
       workspacePath: activeWorkspacePath,
       configScope: scopeFilter,

@@ -1,3 +1,4 @@
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PluginStoreOrder } from "@zcode/shared";
 import { useServices } from "@/hooks/useServices.js";
@@ -6,6 +7,8 @@ import { logger } from "@/logger.js";
 /** 只持有当前页面投影；请求合并与 TTL 统一归 Host 配置服务管理。 */
 export function usePluginStoreOrder(enabled = true) {
   const { clientConfigService: service } = useServices();
+  const marketplaceEnabled =
+    useOptionalPlatform()?.productCapabilities?.pluginMarketplace !== false;
   const [snapshot, setSnapshot] = useState<{
     service: typeof service;
     order: PluginStoreOrder | null;
@@ -13,6 +16,7 @@ export function usePluginStoreOrder(enabled = true) {
   const generation = useRef(0);
   const refresh = useCallback(
     async (forceRefresh = false) => {
+      if (!enabled || !marketplaceEnabled) return;
       const current = ++generation.current;
       try {
         const { pluginStoreOrder: order } = await service.getSnapshot({ forceRefresh });
@@ -23,15 +27,15 @@ export function usePluginStoreOrder(enabled = true) {
         }
       }
     },
-    [service],
+    [enabled, marketplaceEnabled, service],
   );
 
   useEffect(() => {
-    if (enabled) void refresh();
+    if (enabled && marketplaceEnabled) void refresh();
     return () => {
       generation.current += 1;
     };
-  }, [enabled, refresh]);
+  }, [enabled, marketplaceEnabled, refresh]);
 
   return { order: snapshot?.service === service ? snapshot.order : null, refresh };
 }

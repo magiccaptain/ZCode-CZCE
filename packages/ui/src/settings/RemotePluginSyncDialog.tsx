@@ -1,4 +1,6 @@
 /* eslint-disable max-lines -- 远端 plugin 同步弹窗集中维护加载、选择、风险提示、逐项进度和结果状态，保持与 Skill/MCP 同步弹窗一致。 */
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
+import { PLUGIN_MARKETPLACE_UNAVAILABLE, type ProductCapabilities } from "@zcode/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircleIcon,
@@ -410,7 +412,10 @@ function buildMarketplaceSourceSyncInfo(
   return {};
 }
 
+type MarketplaceCapabilityView = Readonly<Partial<Pick<ProductCapabilities, "pluginMarketplace">>>;
+
 async function loadRemotePluginSyncCandidates(params: {
+  productCapabilities?: MarketplaceCapabilityView;
   localPluginSyncService: IPluginSyncService;
   localWorkspacePath: string;
   localZCodeAgentService?: RemotePluginSyncAgentService | null;
@@ -442,7 +447,12 @@ async function loadRemotePluginSyncCandidates(params: {
     }),
   );
 
-  if (!params.localZCodeAgentService || !params.remoteZCodeAgentService) {
+  // 禁用市场不能为了显示同步候选先请求 overview；本地 inline/archive 原路径保留。
+  if (
+    params.productCapabilities?.pluginMarketplace === false ||
+    !params.localZCodeAgentService ||
+    !params.remoteZCodeAgentService
+  ) {
     return { candidates: inlineCandidates, statuses: inlineStatuses };
   }
 
@@ -751,6 +761,7 @@ async function syncPortablePluginOptions(
 }
 
 async function syncSelectedRemotePlugins(params: {
+  productCapabilities?: MarketplaceCapabilityView;
   localPluginSyncService: IPluginSyncService;
   onItemProgress?: (event: RemotePluginSyncProgressEvent) => void;
   remotePluginSyncService: IPluginSyncService;
@@ -841,6 +852,7 @@ async function syncSelectedRemotePlugins(params: {
 
 async function syncMarketplaceRemotePlugin(
   params: {
+    productCapabilities?: MarketplaceCapabilityView;
     localPluginSyncService: IPluginSyncService;
     onItemProgress?: (event: RemotePluginSyncProgressEvent) => void;
     preparedMarketplaceSources: Set<string>;
@@ -858,6 +870,9 @@ async function syncMarketplaceRemotePlugin(
   const marketplacePlugin = candidate.marketplacePlugin;
   const directoryName = `${candidate.marketplace}/${candidate.name}`;
   try {
+    // 旧选择行也必须在 source/archive/install 执行前拒绝，不能只从列表移除。
+    if (params.productCapabilities?.pluginMarketplace === false)
+      throw new Error(PLUGIN_MARKETPLACE_UNAVAILABLE);
     throwIfRemotePluginSyncStopped(params, row);
     if (!params.remoteZCodeAgentService || !marketplacePlugin) {
       throw new Error("remote plugin install service is not available");
@@ -875,6 +890,7 @@ async function syncMarketplaceRemotePlugin(
     ) {
       await prepareRemoteMarketplaceSource(
         {
+          productCapabilities: params.productCapabilities,
           localPluginSyncService: params.localPluginSyncService,
           onItemProgress: params.onItemProgress,
           remotePluginSyncService: params.remotePluginSyncService,
@@ -967,6 +983,7 @@ function buildSelectedMarketplacePluginNames(
 
 async function prepareRemoteMarketplaceSource(
   params: {
+    productCapabilities?: MarketplaceCapabilityView;
     localPluginSyncService: IPluginSyncService;
     onItemProgress?: (event: RemotePluginSyncProgressEvent) => void;
     remotePluginSyncService: IPluginSyncService;
@@ -978,6 +995,8 @@ async function prepareRemoteMarketplaceSource(
   row: RemotePluginSyncRow,
   workspace: { workspaceIdentity?: string; workspacePath: string },
 ): Promise<void> {
+  if (params.productCapabilities?.pluginMarketplace === false)
+    throw new Error(PLUGIN_MARKETPLACE_UNAVAILABLE);
   const candidate = row.candidate;
   const marketplacePlugin = candidate.marketplacePlugin;
   if (!marketplacePlugin) {
@@ -1513,6 +1532,7 @@ function RemotePluginSyncResultList({ result }: { result: RemotePluginSyncRunRes
 }
 
 export function RemotePluginSyncDialog(props: RemotePluginSyncDialogProps) {
+  const productCapabilities = useOptionalPlatform()?.productCapabilities;
   const { intl } = useZCodeIntl();
   const {
     localPluginSyncService,
@@ -1565,6 +1585,7 @@ export function RemotePluginSyncDialog(props: RemotePluginSyncDialogProps) {
     void (async () => {
       try {
         const { candidates, statuses } = await loadRemotePluginSyncCandidates({
+          productCapabilities,
           localPluginSyncService,
           localWorkspacePath: localWorkspacePath ?? workspacePath,
           localZCodeAgentService,
@@ -1600,6 +1621,7 @@ export function RemotePluginSyncDialog(props: RemotePluginSyncDialogProps) {
     localPluginSyncService,
     localWorkspacePath,
     localZCodeAgentService,
+    productCapabilities,
     open,
     remotePluginSyncService,
     remoteZCodeAgentService,
@@ -1744,6 +1766,7 @@ export function RemotePluginSyncDialog(props: RemotePluginSyncDialogProps) {
     stopWaitersRef.current = new Map();
     try {
       const result = await syncSelectedRemotePlugins({
+        productCapabilities,
         localPluginSyncService,
         onItemProgress: (event) => {
           if (syncAbortController.signal.aborted) {

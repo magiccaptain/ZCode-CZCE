@@ -30,6 +30,11 @@ import {
 import { normalizePluginSyncRelativePath, resolvePluginSyncPathWithin } from "./pluginSyncPath.js";
 import { checkRemoteSyncDirectoriesWriteAccess } from "../remote-sync/remoteSyncWriteAccess.js";
 
+import {
+  assertPluginMarketplaceEnabled,
+  type PluginMarketplaceCapabilities,
+} from "../pluginMarketplaceBoundary.js";
+
 interface PluginManifestInfo {
   name: string;
   pluginId: string;
@@ -82,6 +87,7 @@ const PLUGIN_MANIFEST_RELATIVE_PATHS = [
 
 export function createPluginSyncService(options?: {
   maxArchiveBytes?: number;
+  productCapabilities?: PluginMarketplaceCapabilities;
 }): IPluginSyncService {
   const maxArchiveBytes = options?.maxArchiveBytes ?? DEFAULT_MAX_ARCHIVE_BYTES;
   return {
@@ -173,6 +179,7 @@ export function createPluginSyncService(options?: {
       };
     },
     async exportMarketplaceSourceArchive(params) {
+      assertPluginMarketplaceEnabled(options?.productCapabilities);
       const result = await exportMarketplaceSourceArchiveInternal(params, maxArchiveBytes);
       if (result.archive.byteLength > maxArchiveBytes) {
         throw new Error(
@@ -199,6 +206,7 @@ export function createPluginSyncService(options?: {
       ]);
     },
     async importMarketplaceSourceArchive(params) {
+      assertPluginMarketplaceEnabled(options?.productCapabilities);
       if (params.overwrite) {
         throw new Error("plugin marketplace source overwrite is not supported");
       }

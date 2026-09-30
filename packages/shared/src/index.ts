@@ -307,5 +307,10 @@ export * from "./pluginStoreOrdering.js";
 export * from "./session-debug.js";
 export { redactFeedbackText } from "./feedbackPrivacy.js";
 
-export { productCapabilitiesSchema, APP_UPDATES_UNAVAILABLE } from "./productCapabilities.js";
+export {
+  productCapabilitiesSchema,
+  APP_UPDATES_UNAVAILABLE,
+  PLUGIN_MARKETPLACE_UNAVAILABLE,
+  PLUGIN_MARKETPLACE_CAPABILITY_ENV,
+} from "./productCapabilities.js";
 export type { ProductCapabilities } from "./productCapabilities.js";

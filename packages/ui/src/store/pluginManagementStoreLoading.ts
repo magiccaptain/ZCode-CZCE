@@ -1,5 +1,5 @@
 import type { IPluginManagementService } from "@zcode/services";
-import type { ZCodePluginScope } from "@zcode/shared";
+import { PLUGIN_MARKETPLACE_UNAVAILABLE, type ZCodePluginScope } from "@zcode/shared";
 import { logger } from "@/logger.js";
 import type { PluginManagementState } from "@/store/pluginManagementStore.js";
 
@@ -12,6 +12,28 @@ function buildWorkspaceKey(workspacePath: string, workspaceIdentity: string | nu
 }
 
 const inFlightLoads = new Map<string, Promise<void>>();
+
+/** 清理的是派生市场 UI 缓存，不删除本地 manifest 或任何持久化数据。 */
+export function localOnlyMarketplaceProjection(): Partial<PluginManagementState> {
+  return {
+    marketplaces: [],
+    marketplaceAvailabilityKnown: false,
+    availablePlugins: [],
+    installedPlugins: [],
+    restorableBuiltins: [],
+    describeCache: {},
+  };
+}
+
+/** 禁用市场时旧页面/排队回调不得触发服务或 reload；本地配置命令不走此门禁。 */
+export function rejectMarketplaceOperation(
+  set: (partial: Partial<PluginManagementState>) => void,
+  get: () => PluginManagementState,
+): boolean {
+  if (get().productCapabilities?.pluginMarketplace !== false) return false;
+  set({ error: PLUGIN_MARKETPLACE_UNAVAILABLE, lastFailedPluginId: null });
+  return true;
+}
 
 export async function runWorkspaceOperation(
   set: (partial: Partial<PluginManagementState>) => void,
@@ -79,7 +101,8 @@ export async function loadInto(
   },
 ): Promise<void> {
   const workspaceKey = buildWorkspaceKey(params.workspacePath, params.workspaceIdentity);
-  const loadKey = `${workspaceKey}\u0000${params.configScope ?? "effective"}`;
+  const marketplaceEnabled = get().productCapabilities?.pluginMarketplace !== false;
+  const loadKey = `${workspaceKey}\u0000${params.configScope ?? "effective"}\u0000${marketplaceEnabled}`;
   const existing = inFlightLoads.get(loadKey);
   if (existing) {
     logger.debug("[plugins] join in-flight list", {
@@ -89,7 +112,7 @@ export async function loadInto(
     await existing;
     return;
   }
-  const loadTask = runLoadInto(set, get, { ...params, workspaceKey });
+  const loadTask = runLoadInto(set, get, { ...params, workspaceKey, marketplaceEnabled });
   inFlightLoads.set(loadKey, loadTask);
   try {
     await loadTask;
@@ -108,6 +131,7 @@ async function runLoadInto(
     workspaceIdentity: string | null;
     configScope: ZCodePluginScope | null;
     workspaceKey: string;
+    marketplaceEnabled: boolean;
     pluginService: IPluginManagementService;
   },
 ): Promise<void> {
@@ -116,13 +140,31 @@ async function runLoadInto(
     if (
       current.workspacePath !== params.workspacePath ||
       current.workspaceIdentity !== params.workspaceIdentity ||
-      current.configScope !== params.configScope
+      current.configScope !== params.configScope ||
+      (current.productCapabilities?.pluginMarketplace !== false) !== params.marketplaceEnabled
     ) {
       return;
     }
     set(partial);
   };
   try {
+    // 本地管理不能先请求禁用 overview 再 fallback；只读已安装 manifest，保留未知来源语义。
+    if (!params.marketplaceEnabled) {
+      const result = await params.pluginService.listPlugins({
+        workspacePath: params.workspacePath,
+        ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
+        ...(params.configScope ? { configScope: params.configScope } : {}),
+      });
+      setIfCurrent({
+        plugins: result.plugins,
+        diagnostics: result.diagnostics,
+        ...localOnlyMarketplaceProjection(),
+        // 禁用清理市场缓存后保留 CLI 本地 suppression 派生 inventory；旧版本缺席不请求 overview。
+        restorableBuiltins: result.restorableBuiltins ?? [],
+        loading: false,
+      });
+      return;
+    }
     // React StrictMode、settings service 引用刷新或快速切换设置页时，
     // 同一 workspace 会并发触发 initialize。每次触发都发成独立 plugins/list 的话，
     // agent 已经 stale 时这些请求会排队产生多个 30s timeout。按 workspaceKey 复用 in-flight
@@ -157,6 +199,10 @@ async function runLoadInto(
       lastFailedPluginId: null,
       error: error instanceof Error ? error.message : String(error),
     });
+    if (!params.marketplaceEnabled) {
+      setIfCurrent({ loading: false, error: toMessage(error), lastFailedPluginId: null });
+      return;
+    }
     try {
       const result = await params.pluginService.listPlugins({
         workspacePath: params.workspacePath,

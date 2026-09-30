@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { ZCODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@zcode/contracts";
+import { assertPluginMarketplaceEnabled } from "./product-capability.js";
 
 const BUNDLED_PARTITION_FILE = "bundled-marketplace.json";
 const CDN_PARTITION_FILE = "cdn-marketplace.json";
@@ -27,22 +28,17 @@ export function writeCdnOfficialMarketplacePartitionSync(input: {
   manifest: Record<string, unknown>;
   storageRoot: string;
 }): Record<string, unknown> {
+  assertPluginMarketplaceEnabled();
   assertOfficialManifest(input.manifest);
   writeJsonFileSync(partitionPath(input.storageRoot, CDN_PARTITION_FILE), input.manifest);
   return rebuildOfficialMarketplaceSync(input.storageRoot);
 }
 
-export function loadBundledOfficialPluginRootsSync(
-  storageRoot: string,
-): string[] | undefined {
+export function loadBundledOfficialPluginRootsSync(storageRoot: string): string[] | undefined {
   const bundledPartition = readBundledPartition(storageRoot);
   if (!bundledPartition) return undefined;
 
-  const officialCacheRoot = resolve(
-    storageRoot,
-    "cache",
-    ZCODE_OFFICIAL_PLUGIN_MARKETPLACE,
-  );
+  const officialCacheRoot = resolve(storageRoot, "cache", ZCODE_OFFICIAL_PLUGIN_MARKETPLACE);
   return readPluginEntries(bundledPartition.manifest).flatMap((plugin) => {
     const name = readPluginName(plugin);
     const cachePath = typeof plugin.cachePath === "string" ? plugin.cachePath : undefined;

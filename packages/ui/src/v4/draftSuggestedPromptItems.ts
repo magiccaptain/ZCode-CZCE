@@ -33,9 +33,13 @@ export interface DraftSuggestedPromptItem {
 
 /** 推荐列表与旧点击共用同一产品 admission；普通自动化不属于套餐关闭范围。 */
 export function isDraftSuggestedPromptAllowedByProduct(
-  item: Pick<DraftSuggestedPromptItem, "actions">,
-  capabilities?: Partial<Pick<ProductCapabilities, "productAccount" | "productSubscription">>,
+  item: Pick<DraftSuggestedPromptItem, "actions" | "plugin">,
+  capabilities?: Partial<
+    Pick<ProductCapabilities, "productAccount" | "productSubscription" | "pluginMarketplace">
+  >,
 ): boolean {
+  // 市场推荐会进入来源解析/安装，不能仅隐藏商店侧栏。
+  if (item.plugin && capabilities?.pluginMarketplace === false) return false;
   return (
     !item.actions?.includes(DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS_OFFPEAK) ||
     (capabilities?.productAccount !== false && capabilities?.productSubscription !== false)

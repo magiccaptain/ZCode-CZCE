@@ -858,6 +858,8 @@ function createRuntimeUnavailableError(params: ZCodeAgentWorkspaceTarget): Error
   return error;
 }
 
+import { assertPluginMarketplaceEnabled } from "../pluginMarketplaceBoundary.js";
+
 interface CreateZCodeAgentServiceOptions extends Omit<
   ZCodeAgentProcessManagerOptions,
   "idleTimeoutMs"
@@ -1080,6 +1082,7 @@ export function createZCodeAgentService(
   const automationService = new AutomationService(automationRepo);
   const automationTaskIndexRepo = new TaskIndexRepo();
   const pluginProcessManager = new ZCodeAgentProcessManager({
+    productCapabilities: options?.productCapabilities,
     commandResolver: options?.commandResolver,
     presentationSurface: options?.presentationSurface,
     requestTimeoutMs: options?.requestTimeoutMs,
@@ -1089,6 +1092,7 @@ export function createZCodeAgentService(
   // 合并时误删了独立进程：mcp/list 的慢握手会堵住串行 stdio 队列，连带卡住插件卸载。
   // 恢复专用控制面进程及空闲回收；共享 workspace 路径，不共享请求队列或 watchdog。
   const mcpStatusProcessManager = new ZCodeAgentProcessManager({
+    productCapabilities: options?.productCapabilities,
     commandResolver: options?.commandResolver,
     presentationSurface: options?.presentationSurface,
     processLifecycleReporter: options?.processLifecycleReporter,
@@ -3998,6 +4002,7 @@ export function createZCodeAgentService(
     },
 
     async resolveSuggestedPluginReference(params: ZCodeAgentResolveSuggestedPluginReferenceParams) {
+      assertPluginMarketplaceEnabled(options?.productCapabilities);
       const client = await getPluginManagementClient();
       return client.request(
         zcodeProtocolMethods.pluginsResolveSuggestedReference,
@@ -4049,6 +4054,7 @@ export function createZCodeAgentService(
     },
 
     async getPluginsOverview(params: ZCodeAgentPluginViewParams) {
+      assertPluginMarketplaceEnabled(options?.productCapabilities);
       const client = await getPluginManagementClient();
       return client.request(
         zcodeProtocolMethods.pluginsOverview,
@@ -4062,6 +4068,7 @@ export function createZCodeAgentService(
     },
 
     async addPluginMarketplace(params: ZCodeAgentAddPluginMarketplaceParams) {
+      assertPluginMarketplaceEnabled(options?.productCapabilities);
       const client = await getPluginManagementClient();
       return client.request(
         zcodeProtocolMethods.pluginsMarketplaceAdd,
@@ -4077,6 +4084,7 @@ export function createZCodeAgentService(
     },
 
     async removePluginMarketplace(params: ZCodeAgentRemovePluginMarketplaceParams) {
+      assertPluginMarketplaceEnabled(options?.productCapabilities);
       const client = await getPluginManagementClient();
       return client.request(
         zcodeProtocolMethods.pluginsMarketplaceRemove,
@@ -4090,6 +4098,7 @@ export function createZCodeAgentService(
     },
 
     async updatePluginMarketplace(params: ZCodeAgentUpdatePluginMarketplaceParams) {
+      assertPluginMarketplaceEnabled(options?.productCapabilities);
       const client = await getPluginManagementClient();
       return client.request(
         zcodeProtocolMethods.pluginsMarketplaceUpdate,
@@ -4104,6 +4113,7 @@ export function createZCodeAgentService(
     },
 
     async installPlugin(params: ZCodeAgentInstallPluginParams) {
+      assertPluginMarketplaceEnabled(options?.productCapabilities);
       const client = await getPluginManagementClient();
       return client.request(
         zcodeProtocolMethods.pluginsInstall,
@@ -4147,6 +4157,7 @@ export function createZCodeAgentService(
     },
 
     async updatePlugin(params: ZCodeAgentUpdatePluginParams) {
+      assertPluginMarketplaceEnabled(options?.productCapabilities);
       const client = await getPluginManagementClient();
       return client.request(
         zcodeProtocolMethods.pluginsUpdate,
@@ -4205,6 +4216,7 @@ export function createZCodeAgentService(
     },
 
     async validatePlugin(params: ZCodeAgentValidatePluginParams) {
+      assertPluginMarketplaceEnabled(options?.productCapabilities);
       const client = await getPluginManagementClient();
       return client.request(
         zcodeProtocolMethods.pluginsValidate,
@@ -4220,6 +4232,7 @@ export function createZCodeAgentService(
     },
 
     async describePlugin(params: ZCodeAgentDescribePluginParams) {
+      assertPluginMarketplaceEnabled(options?.productCapabilities);
       const client = await getPluginManagementClient();
       return client.request(
         zcodeProtocolMethods.pluginsDescribe,

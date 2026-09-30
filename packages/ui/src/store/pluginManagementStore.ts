@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type {
+  ProductCapabilities,
   ZCodeAvailablePluginSummary,
   ZCodeInstalledPluginSummary,
   ZCodePluginDiagnostic,
@@ -10,7 +11,12 @@ import type {
 } from "@zcode/shared";
 import type { IPluginManagementService } from "@zcode/services";
 import { logger } from "@/logger.js";
-import { loadInto, runWorkspaceOperation } from "@/store/pluginManagementStoreLoading.js";
+import {
+  loadInto,
+  runWorkspaceOperation,
+  rejectMarketplaceOperation,
+  localOnlyMarketplaceProjection,
+} from "@/store/pluginManagementStoreLoading.js";
 import { setPluginEnabledOptimistically } from "@/store/pluginManagementStoreEnabled.js";
 
 // 市场详情按需拉取的组件清单缓存：按 pluginId 记 loading/data/error，避免重复请求与切换闪烁。
@@ -24,6 +30,8 @@ export interface PluginDescribeEntry {
 // UI 不再直触 IZCodeAgentService，plugins/* 旧协议词的消费收拢到服务实现一处。
 // 与已 retired 的 marketplace pluginStore 无关, 故单独建一个精简 store。
 export interface PluginManagementState {
+  /** 当前 target 注入的只读平台视图，不定义产品固定事实。 */
+  productCapabilities?: Readonly<Partial<Pick<ProductCapabilities, "pluginMarketplace">>>;
   workspacePath: string | null;
   workspaceIdentity: string | null;
   configScope: ZCodePluginScope | null;
@@ -49,6 +57,7 @@ export interface PluginManagementState {
   operationVersion: number;
   describeCache: Record<string, PluginDescribeEntry>;
   initialize: (params: {
+    productCapabilities?: PluginManagementState["productCapabilities"];
     workspacePath: string;
     workspaceIdentity?: string;
     configScope?: ZCodePluginScope;
@@ -136,7 +145,13 @@ export const usePluginManagementStore = create<PluginManagementState>((set, get)
   operationVersion: 0,
   describeCache: {},
 
-  async initialize({ workspacePath, workspaceIdentity, configScope, pluginService }) {
+  async initialize({
+    workspacePath,
+    workspaceIdentity,
+    configScope,
+    pluginService,
+    productCapabilities,
+  }) {
     const normalizedIdentity = workspaceIdentity?.trim() || null;
     const normalizedConfigScope = configScope ?? null;
     const current = get();
@@ -150,6 +165,7 @@ export const usePluginManagementStore = create<PluginManagementState>((set, get)
       current.workspaceIdentity === normalizedIdentity &&
       current.configScope === normalizedConfigScope;
     set({
+      productCapabilities,
       workspacePath,
       workspaceIdentity: normalizedIdentity,
       configScope: normalizedConfigScope,
@@ -162,6 +178,8 @@ export const usePluginManagementStore = create<PluginManagementState>((set, get)
       // 旧层的 operationId 不能继续把新层的输入控件置灰。旧操作结束时由版本号防止
       // 它误清理新层后来启动的同名操作。
       ...(contextChanged ? { operationId: null } : {}),
+      // 列表异步等待期间也不能显示旧来源、推荐和更新投影。
+      ...(productCapabilities?.pluginMarketplace === false ? localOnlyMarketplaceProjection() : {}),
     });
     await loadInto(set, get, {
       workspacePath,
@@ -186,6 +204,7 @@ export const usePluginManagementStore = create<PluginManagementState>((set, get)
   },
 
   async addMarketplace(source, pluginService) {
+    if (rejectMarketplaceOperation(set, get)) return false;
     return runWorkspaceOperation(
       set,
       get,
@@ -201,6 +220,7 @@ export const usePluginManagementStore = create<PluginManagementState>((set, get)
   },
 
   async updateMarketplace(marketplace, pluginService) {
+    if (rejectMarketplaceOperation(set, get)) return false;
     let refreshError: string | null = null;
     const succeeded = await runWorkspaceOperation(
       set,
@@ -235,6 +255,7 @@ export const usePluginManagementStore = create<PluginManagementState>((set, get)
   },
 
   async removeMarketplace(marketplace, pluginService) {
+    if (rejectMarketplaceOperation(set, get)) return;
     await runWorkspaceOperation(
       set,
       get,
@@ -250,6 +271,7 @@ export const usePluginManagementStore = create<PluginManagementState>((set, get)
   },
 
   async installPlugin(pluginName, marketplace, pluginService, scope = "user") {
+    if (rejectMarketplaceOperation(set, get)) return;
     await runWorkspaceOperation(
       set,
       get,
@@ -287,6 +309,7 @@ export const usePluginManagementStore = create<PluginManagementState>((set, get)
   },
 
   async updatePlugin(pluginId, pluginService) {
+    if (rejectMarketplaceOperation(set, get)) return;
     await runWorkspaceOperation(
       set,
       get,
@@ -348,6 +371,7 @@ export const usePluginManagementStore = create<PluginManagementState>((set, get)
   },
 
   async validateSource(source, pluginService) {
+    if (rejectMarketplaceOperation(set, get)) return;
     const { workspacePath, workspaceIdentity } = get();
     if (!workspacePath) return;
     set({ operationId: `marketplace:validate:${source}`, error: null });
@@ -371,6 +395,7 @@ export const usePluginManagementStore = create<PluginManagementState>((set, get)
   },
 
   async describePlugin(pluginId, pluginName, marketplace, pluginService, force = false) {
+    if (rejectMarketplaceOperation(set, get)) return;
     const { workspacePath, workspaceIdentity, describeCache } = get();
     if (!workspacePath) return;
     const cached = describeCache[pluginId];

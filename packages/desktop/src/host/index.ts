@@ -1,3 +1,4 @@
+import { buildPluginMarketplaceSpawnEnv } from "@zcode/services/node";
 import { DESKTOP_PRODUCT_CAPABILITIES } from "../main/productCapabilities.js";
 /* eslint-disable max-lines -- Host 入口集中编排 local/remote service wiring，本次退出保护需要在同一处桥接 host 上报。 */
 /* eslint-disable max-lines -- host process 入口集中维护 local/remote 初始化和资源回收，realtime bridge 接入后先保持同文件收口。 */
@@ -2044,6 +2045,7 @@ function exposeServicesOnMessagePort(
         conversationShareService,
         clientMode,
         connectionScope?.service,
+        DESKTOP_PRODUCT_CAPABILITIES,
       ),
     );
   }
@@ -2963,7 +2965,11 @@ async function setupRemoteConnection(
     appVersion: ZCODE_VERSION,
     // 远端 zcode-server/agent 是独立进程，不能继承 host 里的测试/生产 endpoint 选择。
     // 这里只透传 server 侧白名单允许的公开环境变量，避免把 credential/token 带到远端机器。
-    remoteRuntimeEnv: pickRemoteRuntimeEnv(process.env),
+    // 远端不继承本地最终 spawn 环境，必须以同一 Desktop owner 覆盖旧 true。
+    remoteRuntimeEnv: pickRemoteRuntimeEnv({
+      ...process.env,
+      ...buildPluginMarketplaceSpawnEnv(DESKTOP_PRODUCT_CAPABILITIES),
+    }),
     assetInstallMode: target.kind === "ssh" ? target.assetInstallMode : undefined,
     // SSH 由窗口级 registry 串行复用，其余 transport 仍保留远端 connector 自身锁。
     deployLockMode,

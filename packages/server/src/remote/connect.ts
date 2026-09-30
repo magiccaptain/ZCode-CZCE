@@ -3,6 +3,7 @@ import type { IServiceAccessor } from "@zcode/services";
 import { RemoteServiceAccess } from "@zcode/client";
 import {
   SERVICE_AUTHORITY_MODE_ENV,
+  PLUGIN_MARKETPLACE_CAPABILITY_ENV,
   ZCODE_APP_VERSION_ENV,
   ZCODE_DESKTOP_CONTEXT_PROMPT_ENABLED_ENV,
   ZCODE_DYNAMIC_WORKFLOW_MODE_ENV,
@@ -54,6 +55,8 @@ export interface RemoteConnection {
 }
 
 const REMOTE_RUNTIME_ENV_KEYS = [
+  // Desktop 组装传入的只读产品 admission，非敏感；不能被远端旧配置重开。
+  PLUGIN_MARKETPLACE_CAPABILITY_ENV,
   "ZCODE_ENV",
   "ZCODE_BASE_URL",
   "ZCODE_ENDPOINT_ORIGIN",

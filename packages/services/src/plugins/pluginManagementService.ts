@@ -5,7 +5,13 @@
 import type { IZCodeAgentService } from "../zcode-agent/zcodeAgent.js";
 import type { IPluginManagementService } from "./pluginManagement.js";
 
+import {
+  assertPluginMarketplaceEnabled,
+  type PluginMarketplaceCapabilities,
+} from "../pluginMarketplaceBoundary.js";
+
 interface PluginManagementServiceDependencies {
+  productCapabilities?: PluginMarketplaceCapabilities;
   zcodeAgentService: Pick<
     IZCodeAgentService,
     | "listPlugins"
@@ -33,25 +39,30 @@ export function createPluginManagementService(
   dependencies: PluginManagementServiceDependencies,
 ): IPluginManagementService {
   const agent = dependencies.zcodeAgentService;
+  const market = async <T>(operation: () => Promise<T>): Promise<T> => {
+    assertPluginMarketplaceEnabled(dependencies.productCapabilities);
+    return operation();
+  };
   return {
     listPlugins: (params) => agent.listPlugins(params),
     getPluginReferenceCatalog: (params) => agent.getPluginReferenceCatalog(params),
-    resolveSuggestedPluginReference: (params) => agent.resolveSuggestedPluginReference(params),
+    resolveSuggestedPluginReference: (params) =>
+      market(() => agent.resolveSuggestedPluginReference(params)),
     onDynamicPluginOperationProgress: (operationId) =>
       agent.onDynamicPluginOperationProgress(operationId),
-    getPluginsOverview: (params) => agent.getPluginsOverview(params),
-    addPluginMarketplace: (params) => agent.addPluginMarketplace(params),
-    removePluginMarketplace: (params) => agent.removePluginMarketplace(params),
-    updatePluginMarketplace: (params) => agent.updatePluginMarketplace(params),
-    installPlugin: (params) => agent.installPlugin(params),
+    getPluginsOverview: (params) => market(() => agent.getPluginsOverview(params)),
+    addPluginMarketplace: (params) => market(() => agent.addPluginMarketplace(params)),
+    removePluginMarketplace: (params) => market(() => agent.removePluginMarketplace(params)),
+    updatePluginMarketplace: (params) => market(() => agent.updatePluginMarketplace(params)),
+    installPlugin: (params) => market(() => agent.installPlugin(params)),
     cancelPluginOperation: (params) => agent.cancelPluginOperation(params),
     uninstallPlugin: (params) => agent.uninstallPlugin(params),
-    updatePlugin: (params) => agent.updatePlugin(params),
+    updatePlugin: (params) => market(() => agent.updatePlugin(params)),
     restoreBuiltinPlugin: (params) => agent.restoreBuiltinPlugin(params),
     configurePlugin: (params) => agent.configurePlugin(params),
     resetPluginConfig: (params) => agent.resetPluginConfig(params),
-    validatePlugin: (params) => agent.validatePlugin(params),
-    describePlugin: (params) => agent.describePlugin(params),
+    validatePlugin: (params) => market(() => agent.validatePlugin(params)),
+    describePlugin: (params) => market(() => agent.describePlugin(params)),
     setPluginEnabled: (params) => agent.setPluginEnabled(params),
   };
 }

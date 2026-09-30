@@ -146,6 +146,7 @@ export function ComputerUseSection({
       workspacePath,
       workspaceIdentity,
       pluginService: pluginManagementService,
+      productCapabilities: platform.productCapabilities,
     });
   }, [
     supportsComputerUseSettings,

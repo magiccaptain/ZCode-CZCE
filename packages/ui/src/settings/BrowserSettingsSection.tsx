@@ -115,6 +115,7 @@ export function BrowserSettingsSection({
       workspacePath,
       workspaceIdentity,
       pluginService: pluginManagementService,
+      productCapabilities: platform.productCapabilities,
     });
   }, [initializePlugins, pluginManagementService, workspaceIdentity, workspacePath]);
 

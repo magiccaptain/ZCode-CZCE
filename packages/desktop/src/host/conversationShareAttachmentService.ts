@@ -1,5 +1,10 @@
 import { Event as RpcEvent } from "@zcode/rpc";
 import type { IConversationShareService, IZCodeAgentService } from "@zcode/services";
+import {
+  CONVERSATION_SHARING_UNAVAILABLE,
+  createUnsupportedConversationShareService,
+} from "@zcode/services";
+import type { ProductCapabilities } from "@zcode/shared";
 import { conversationShareConnectionScopeFactory } from "@zcode/services/node";
 
 type ConversationShareAgentService = Pick<
@@ -29,7 +34,17 @@ export function scopeConversationShareServiceForAttachment(
   service: IConversationShareService,
   clientMode: "desktop-continuous" | "web-remote-replayable",
   agentService?: ConversationShareAgentService,
+  productCapabilities?: Readonly<Pick<ProductCapabilities, "sharing">>,
 ): IConversationShareService {
+  // 先于连接 scope / 手机分流门禁，旧可执行 service 也不能恢复产品分享网络链路。
+  if (productCapabilities?.sharing === false) {
+    return createUnsupportedConversationShareService({
+      message: CONVERSATION_SHARING_UNAVAILABLE,
+      ...(clientMode === "desktop-continuous"
+        ? { getImportedConversation: (input) => service.getImportedConversation(input) }
+        : {}),
+    });
+  }
   if (clientMode === "desktop-continuous") {
     if (!isConnectionScopableConversationShareService(service)) return service;
     if (agentService) return service[conversationShareConnectionScopeFactory](agentService);

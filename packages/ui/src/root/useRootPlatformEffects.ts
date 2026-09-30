@@ -171,37 +171,43 @@ export function useRootPlatformEffects({
           openWorkspacePath(path);
         })
       : () => {};
-    const disposeShareImport = platform.onShareImport
-      ? platform.onShareImport((payload) => {
-          const current = pendingShareImportRef.current ?? activeShareImportRef.current;
-          if (current && isShareImportIntentSame(current, payload)) {
-            logger.info("[Root] 忽略重复的 share import deep link", {
+    const disposeShareImport =
+      platform.productCapabilities?.sharing !== false && platform.onShareImport
+        ? platform.onShareImport((payload) => {
+            const current = pendingShareImportRef.current ?? activeShareImportRef.current;
+            if (current && isShareImportIntentSame(current, payload)) {
+              logger.info("[Root] 忽略重复的 share import deep link", {
+                shareCodeLength: payload.shareCode.length,
+              });
+              return;
+            }
+            const activeTab = tabs.find(
+              (tab): tab is Extract<WindowTabState, { kind: "workspace" }> =>
+                tab.kind === "workspace" &&
+                tab.workspacePath === activeWorkspacePath &&
+                (activeWorkspaceIdentity
+                  ? tab.workspaceIdentity === activeWorkspaceIdentity
+                  : !tab.workspaceIdentity),
+            );
+            pendingShareImportRef.current = createShareImportIntent(
+              payload.shareCode,
+              undefined,
+              {
+                ...(activeWorkspacePath ? { targetWorkspacePath: activeWorkspacePath } : {}),
+                ...(activeWorkspaceIdentity
+                  ? { targetWorkspaceIdentity: activeWorkspaceIdentity }
+                  : {}),
+                targetWorkspaceKind:
+                  activeTab?.remoteSessionId || activeTab?.remoteTarget ? "remote" : "local",
+              },
+              platform.productCapabilities,
+            );
+            setShareImportRevision((revision) => revision + 1);
+            logger.info("[Root] 收到 share import deep link", {
               shareCodeLength: payload.shareCode.length,
             });
-            return;
-          }
-          const activeTab = tabs.find(
-            (tab): tab is Extract<WindowTabState, { kind: "workspace" }> =>
-              tab.kind === "workspace" &&
-              tab.workspacePath === activeWorkspacePath &&
-              (activeWorkspaceIdentity
-                ? tab.workspaceIdentity === activeWorkspaceIdentity
-                : !tab.workspaceIdentity),
-          );
-          pendingShareImportRef.current = createShareImportIntent(payload.shareCode, undefined, {
-            ...(activeWorkspacePath ? { targetWorkspacePath: activeWorkspacePath } : {}),
-            ...(activeWorkspaceIdentity
-              ? { targetWorkspaceIdentity: activeWorkspaceIdentity }
-              : {}),
-            targetWorkspaceKind:
-              activeTab?.remoteSessionId || activeTab?.remoteTarget ? "remote" : "local",
-          });
-          setShareImportRevision((revision) => revision + 1);
-          logger.info("[Root] 收到 share import deep link", {
-            shareCodeLength: payload.shareCode.length,
-          });
-        })
-      : () => {};
+          })
+        : () => {};
     const disposeNotificationClick = platform.onTaskNotificationClick((taskId: string) => {
       logger.info("[Root] onTaskNotificationClick:", taskId);
       // 遍历所有 workspace 找到 taskId 所属的 workspace，然后激活对应 tab 并切换任务
@@ -290,6 +296,8 @@ export function useRootPlatformEffects({
   }, [activeWorkspaceIdentity, activeWorkspacePath, platform, tabs]);
 
   useEffect(() => {
+    // 禁用分享时旧 pending 不得恢复进度订阅或导入任务。
+    if (platform.productCapabilities?.sharing === false) return;
     const pending = pendingShareImportRef.current;
     if (!pending || !baseServices || activeShareImportRef.current || importOperationRef.current) {
       return;
@@ -493,6 +501,7 @@ export function useRootPlatformEffects({
     intl,
     isRestoringOAuthSession,
     locale,
+    platform.productCapabilities,
     shareImportRevision,
   ]);
 

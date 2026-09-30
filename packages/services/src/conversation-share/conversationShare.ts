@@ -14,6 +14,9 @@ import { Event as RpcEvent, type Event } from "@zcode/rpc";
 import { createServiceDescriptor } from "../descriptors.js";
 import type { ConversationShareClientErrorKind } from "./conversationShareHttpClient.js";
 
+export const CONVERSATION_SHARING_UNAVAILABLE =
+  "Conversation sharing is unavailable in this product";
+
 export type ConversationShareSelection =
   | { kind: "all" }
   | { kind: "productTurns"; productTurnIds: string[] }
@@ -461,6 +464,8 @@ export function createUnsupportedConversationShareService(options: {
   message: string;
   /** 可选审计钩子：宿主想记录被拒绝的动作名时传入。 */
   onRejected?: (action: string) => void;
+  /** 禁用发布的本地宿主仍委托原 owner 离线读取，不抹掉已导入内容。 */
+  getImportedConversation?: IConversationShareService["getImportedConversation"];
 }): IConversationShareService {
   const reject = (action: string) => async (): Promise<never> => {
     options.onRejected?.(action);
@@ -474,8 +479,8 @@ export function createUnsupportedConversationShareService(options: {
     onDynamicPublishProgress: noEvents,
     importShare: reject("importShare"),
     onDynamicImportProgress: noEvents,
-    // 只读查询：不可用环境下返回 null 而不是抛错，会话里就是不渲染只读块。
-    getImportedConversation: async () => null,
+    // 没有本地 reader 时返回 null；禁用网络不能抹掉宿主原有的离线只读块。
+    getImportedConversation: options.getImportedConversation ?? (async () => null),
     getPreview: reject("getPreview"),
     getContinuation: reject("getContinuation"),
   };

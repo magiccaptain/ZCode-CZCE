@@ -1,7 +1,13 @@
 import type { PluginScope, PluginsOverviewResult } from "@zcode/shared";
 import type { IPluginsService } from "./plugins.js";
 
+import {
+  assertPluginMarketplaceEnabled,
+  type PluginMarketplaceCapabilities,
+} from "../pluginMarketplaceBoundary.js";
+
 interface PluginsServiceOptions {
+  productCapabilities?: PluginMarketplaceCapabilities;
   isDesktopRuntime?: boolean;
 }
 
@@ -14,16 +20,19 @@ function createRetiredOverview(): PluginsOverviewResult {
   };
 }
 
-function throwRetiredPluginManagement(): never {
+function throwRetired(capabilities?: PluginMarketplaceCapabilities): never {
+  assertPluginMarketplaceEnabled(capabilities);
   throw new Error("Legacy plugin management has been retired in ZCode Agent mode");
 }
 
-export function createPluginsService(_options?: PluginsServiceOptions): IPluginsService {
+export function createPluginsService(options?: PluginsServiceOptions): IPluginsService {
+  const throwRetiredPluginManagement = () => throwRetired(options?.productCapabilities);
   return {
     async getOverview(_params: {
       workspacePath: string;
       workspaceIdentity?: string;
     }): Promise<PluginsOverviewResult> {
+      assertPluginMarketplaceEnabled(options?.productCapabilities);
       return createRetiredOverview();
     },
 

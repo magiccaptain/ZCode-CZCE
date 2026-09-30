@@ -1,3 +1,4 @@
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 /* eslint-disable max-lines -- 子智能体管理页集中维护作用域列表、表单和启用状态，避免状态分散 */
 import { useStartPlanRecommendation } from "@/hooks/useStartPlanRecommendation.js";
 import { hasExplicitModelChanged } from "@/lib/startPlanRecommendation.js";
@@ -1265,6 +1266,7 @@ function SubagentForm({
 
 export function SubagentsSection({ onManageModels }: SubagentsSectionProps) {
   const { intl, locale } = useZCodeIntl();
+  const platform = useOptionalPlatform();
   const confirmDialog = useConfirmDialog();
   const plugins = usePluginManagementStore((state) => state.plugins);
   const availablePlugins = usePluginManagementStore((state) => state.availablePlugins);
@@ -1376,6 +1378,7 @@ export function SubagentsSection({ onManageModels }: SubagentsSectionProps) {
           workspaceIdentity: targetWorkspaceIdentity,
           configScope: activeScope === "user" ? "user" : undefined,
           pluginService: pluginManagementService,
+          productCapabilities: platform?.productCapabilities,
         });
         if (active) await loadAgents(false);
       } catch (initializationError) {

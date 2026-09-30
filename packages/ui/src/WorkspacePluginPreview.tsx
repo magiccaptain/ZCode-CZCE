@@ -1,3 +1,4 @@
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import {
@@ -60,7 +61,9 @@ export function WorkspacePluginPreview({
 }) {
   const { intl, locale } = useZCodeIntl();
   const isOfficeMode = useIsOfficeMode();
-  const { order } = usePluginStoreOrder();
+  const capabilities = useOptionalPlatform()?.productCapabilities;
+  const marketplaceEnabled = capabilities?.pluginMarketplace !== false;
+  const { order } = usePluginStoreOrder(marketplaceEnabled);
   const [open, setOpen] = useState(false);
   const [retryRevision, setRetryRevision] = useState(0);
   const [lastCatalog, setLastCatalog] = useState<{
@@ -116,8 +119,9 @@ export function WorkspacePluginPreview({
     ];
   }, [previewEntries, isOfficeMode, locale, order]);
   const browse = (pluginId?: string) => {
+    if (!marketplaceEnabled) return;
     setOpen(false);
-    requestPluginStoreOpen(pluginId);
+    requestPluginStoreOpen(pluginId, capabilities);
     onOpen();
   };
   const selectPlugin = (entry: (typeof visibleEntries)[number]) => {
@@ -230,16 +234,18 @@ export function WorkspacePluginPreview({
             )}
           </CommandList>
         </Command>
-        <div className="mx-1 mt-3 border-t border-border py-1">
-          <Button
-            variant="ghost"
-            className="h-8 w-full justify-between rounded-xl px-3 py-1 text-ui-base/relaxed"
-            onClick={() => browse()}
-          >
-            {intl.formatMessage({ id: "chat.plugins.browseMarketplace" })}
-            <ArrowUpRight className="size-4" />
-          </Button>
-        </div>
+        {marketplaceEnabled ? (
+          <div className="mx-1 mt-3 border-t border-border py-1">
+            <Button
+              variant="ghost"
+              className="h-8 w-full justify-between rounded-xl px-3 py-1 text-ui-base/relaxed"
+              onClick={() => browse()}
+            >
+              {intl.formatMessage({ id: "chat.plugins.browseMarketplace" })}
+              <ArrowUpRight className="size-4" />
+            </Button>
+          </div>
+        ) : null}
       </PopoverContent>
     </Popover>
   );

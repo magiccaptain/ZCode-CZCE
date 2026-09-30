@@ -1,3 +1,5 @@
+import type { ProductCapabilities } from "@zcode/shared";
+import { ConversationShareServiceError, CONVERSATION_SHARING_UNAVAILABLE } from "@zcode/services";
 export type ShareImportIntentStatus =
   | "received"
   | "waiting_for_auth"
@@ -23,7 +25,11 @@ export function createShareImportIntent(
     ShareImportIntent,
     "targetWorkspacePath" | "targetWorkspaceIdentity" | "targetWorkspaceKind"
   >,
+  capabilities?: Readonly<Partial<Pick<ProductCapabilities, "sharing">>>,
 ): ShareImportIntent {
+  // 旧 intent/重试幂等键也不能绕过产品 admission。
+  if (capabilities?.sharing === false)
+    throw new ConversationShareServiceError("feature_disabled", CONVERSATION_SHARING_UNAVAILABLE);
   return {
     shareCode,
     clientRequestId: requestIdFactory(),

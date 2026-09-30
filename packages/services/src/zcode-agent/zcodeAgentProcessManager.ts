@@ -1,3 +1,7 @@
+import {
+  buildPluginMarketplaceSpawnEnv,
+  type PluginMarketplaceCapabilities,
+} from "../pluginMarketplaceBoundary.js";
 import { resolveZCodeAgentSpawnCwd } from "#src/zcode-agent/zcodeAgentSpawnCwd.js";
 import type { ZCodeAgentStorageStartupSnapshot } from "#src/zcode-agent/zcodeAgent.js";
 /* eslint-disable max-lines -- zcodeAgentProcessManager 集中维护 agent 子进程启动、复用、超时回收和 runtime identity，拆分会扩大进程生命周期状态同步面 */
@@ -81,6 +85,8 @@ export interface ZCodeAgentProcessManagerOptions {
    * 业务 workspacePath/workspaceKey 不随 cwd 兜底改变。
    */
   spawnFallbackCwd?: string;
+  /** Desktop 只读装配事实；最终 env 合并不得由 command/env 重新开启市场。 */
+  productCapabilities?: PluginMarketplaceCapabilities;
   /**
    * 每次 spawn agent 子进程前解析的额外环境变量（在 process.env 之后、workspace 变量之前合入）。
    * 用于把设置页的代理等配置注入子进程；按 spawn 时读取，天然「下次启动生效」。
@@ -570,6 +576,7 @@ export class ZCodeAgentProcessManager {
   private readonly presentationSurface: ZCodeAgentProcessManagerOptions["presentationSurface"];
   private readonly requestTimeoutMs: number | undefined;
   private readonly processLifecycleReporter: RuntimeProcessLifecycleReporter | undefined;
+  private readonly productCapabilities: ZCodeAgentProcessManagerOptions["productCapabilities"];
   private readonly resolveSpawnEnv: ZCodeAgentProcessManagerOptions["resolveSpawnEnv"];
   private readonly waitForSpawnAdmission: ZCodeAgentProcessManagerOptions["waitForSpawnAdmission"];
   private readonly spawnFallbackCwd: string | undefined;
@@ -590,6 +597,7 @@ export class ZCodeAgentProcessManager {
     this.presentationSurface = options?.presentationSurface;
     this.requestTimeoutMs = options?.requestTimeoutMs;
     this.processLifecycleReporter = options?.processLifecycleReporter;
+    this.productCapabilities = options?.productCapabilities;
     this.resolveSpawnEnv = options?.resolveSpawnEnv;
     this.waitForSpawnAdmission = options?.waitForSpawnAdmission;
     this.spawnFallbackCwd = options?.spawnFallbackCwd;
@@ -1032,6 +1040,8 @@ export class ZCodeAgentProcessManager {
         // 身份/隔离语义使用 workspaceIdentity；cwd 继续使用 workspacePath。
         ...buildAgentWorkspaceIdentityEnv(params.workspaceIdentity),
         ...buildE2EAgentCoverageEnv(),
+        // 产品源最后合入，旧 command.env 不得重新打开市场。
+        ...buildPluginMarketplaceSpawnEnv(this.productCapabilities),
       }),
       stdio: ["pipe", "pipe", "pipe"],
     });

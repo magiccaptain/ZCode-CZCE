@@ -1,3 +1,4 @@
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { ShareIcon } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "@/components/lib/utils.js";
@@ -15,6 +16,7 @@ export function ConversationShareMenu({
   useWindowsCaptionSpacing?: boolean;
 }) {
   const { intl } = useZCodeIntl();
+  const sharingEnabled = useOptionalPlatform()?.productCapabilities?.sharing !== false;
   const setScope = useConversationShareSelectionStore((state) => state.setScope);
   const finishSelection = useConversationShareSelectionStore((state) => state.finishSelection);
   const publishing = useConversationShareSelectionStore(
@@ -26,6 +28,7 @@ export function ConversationShareMenu({
   );
 
   const handleClick = () => {
+    if (!sharingEnabled) return;
     const currentState = useConversationShareSelectionStore.getState();
     const currentlyActive = currentState.drafts[taskId]?.scope === "partial";
     if (currentState.dockStates[taskId]?.publishing) return;
@@ -42,6 +45,8 @@ export function ConversationShareMenu({
       showTimeline(taskId);
     }
   };
+
+  if (!sharingEnabled) return null;
 
   const trigger = (
     <Button

@@ -1,3 +1,4 @@
+import { usePlatform } from "@/hooks/usePlatform.js";
 /* eslint-disable max-lines -- 插件商店容器统一编排列表/详情、市场源对话框、卸载确认、试用跳转与技能刷新收尾，集中维护保证交互一致。 */
 import { PluginAddMenu } from "@/settings/PluginAddMenu.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -54,7 +55,16 @@ interface PluginStorePageProps {
 
 type PluginStoreView = "store" | "detail";
 
-export function PluginStorePage({
+export function PluginStorePage(props: PluginStorePageProps) {
+  const platform = usePlatform();
+  if (platform.productCapabilities?.pluginMarketplace === false) {
+    consumePluginStoreOpenTarget(platform.productCapabilities);
+    return null;
+  }
+  return <EnabledPluginStorePage {...props} />;
+}
+
+function EnabledPluginStorePage({
   workspacePath,
   workspaceIdentity,
   onCreateTask,

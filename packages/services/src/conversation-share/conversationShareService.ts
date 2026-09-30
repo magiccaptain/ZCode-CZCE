@@ -12,6 +12,7 @@ import type {
   ConversationShareConfirmRequest,
   ConversationShareContinuation,
   ConversationShareRecord,
+  ProductCapabilities,
   Locale,
 } from "@zcode/shared";
 import {
@@ -37,6 +38,7 @@ import { getConversationWorkspaceDir } from "#src/paths.js";
 import { createServiceLogger, type ServiceLogger } from "#src/logger/serviceLogger.js";
 import {
   ConversationShareServiceError,
+  CONVERSATION_SHARING_UNAVAILABLE,
   sanitizeConversationShareIssues,
   type IConversationShareService,
   type PublishTextConversationInput,
@@ -160,6 +162,7 @@ function uniqueImportedFileName(
 }
 
 interface ConversationShareServiceOptions {
+  productCapabilities?: Readonly<Partial<Pick<ProductCapabilities, "sharing">>>;
   zcodeAgentService: ConversationShareAgentService;
   client: ConversationShareHttpClient;
   artifactSource: ConversationShareArtifactSource;
@@ -662,6 +665,7 @@ function selectRows(
 }
 
 export class ConversationShareService implements IConversationShareService {
+  private readonly sharingEnabled: boolean;
   private readonly zcodeAgentService: ConversationShareAgentService;
   private readonly client: ConversationShareHttpClient;
   private readonly artifactSource: ConversationShareArtifactSource;
@@ -706,6 +710,7 @@ export class ConversationShareService implements IConversationShareService {
   private importIndexWriteChain: Promise<void> = Promise.resolve();
 
   constructor(options: ConversationShareServiceOptions) {
+    this.sharingEnabled = options.productCapabilities?.sharing !== false;
     this.zcodeAgentService = options.zcodeAgentService;
     this.client = options.client;
     this.artifactSource = options.artifactSource;
@@ -729,13 +734,24 @@ export class ConversationShareService implements IConversationShareService {
     ).replace(/\/+$/u, "");
     this.importIndexPath = join(this.conversationWorkspaceRoot, ".zcode-share-imports.json");
     this.logger = options.logger ?? createServiceLogger("conversation-share");
-    this.completedImportsLoaded = this.loadCompletedImportIndex();
-    if (this.zcodeSessionService) {
+    // 产品关闭后旧 marker/索引不能触发恢复清理；保留离线会话与附件原字节。
+    this.completedImportsLoaded = this.sharingEnabled
+      ? this.loadCompletedImportIndex()
+      : Promise.resolve();
+    if (this.sharingEnabled && this.zcodeSessionService) {
       void this.cleanupAbandonedImports().catch(() => undefined);
     }
   }
 
-  getCapabilities() {
+  private assertSharingEnabled(): void {
+    // 旧 intent、RPC 与 connection facade 都必须在任何依赖/网络执行前拒绝。
+    if (!this.sharingEnabled) {
+      throwServiceError("feature_disabled", CONVERSATION_SHARING_UNAVAILABLE);
+    }
+  }
+
+  async getCapabilities() {
+    this.assertSharingEnabled();
     return this.client.getCapabilities();
   }
 
@@ -781,6 +797,7 @@ export class ConversationShareService implements IConversationShareService {
     input: ConversationSharePreflightInput,
     agentService: ConversationShareAgentService,
   ): Promise<ConversationSharePreflightResult> {
+    this.assertSharingEnabled();
     const capabilities = await this.client.getCapabilities();
     const supportedArtifactTypes = allowedArtifactSummaries(capabilities);
     const conversation = await this.loadAllRows(input, agentService);
@@ -1201,11 +1218,13 @@ export class ConversationShareService implements IConversationShareService {
     };
   }
 
-  getPreview(shareCode: string) {
+  async getPreview(shareCode: string) {
+    this.assertSharingEnabled();
     return this.client.getPreview(shareCode);
   }
 
-  getContinuation(input: { shareCode: string; clientRequestId: string }) {
+  async getContinuation(input: { shareCode: string; clientRequestId: string }) {
+    this.assertSharingEnabled();
     return this.client.getContinuation(input.shareCode, {
       schema_version: 1,
       client_request_id: input.clientRequestId,
@@ -1321,6 +1340,7 @@ export class ConversationShareService implements IConversationShareService {
     input: ImportConversationShareInput,
     operationId: string,
   ): Promise<ImportConversationShareResult> {
+    this.assertSharingEnabled();
     await this.completedImportsLoaded;
     const workspaceKey = workspaceKeyOf(input.targetWorkspacePath, input.targetWorkspaceIdentity);
     const workspaceKeyedShare = importDedupeKey(input.shareCode, workspaceKey);
@@ -1840,6 +1860,7 @@ export class ConversationShareService implements IConversationShareService {
     operationId: string,
     agentService: ConversationShareAgentService,
   ) {
+    this.assertSharingEnabled();
     this.logger.info(undefined, "conversation share publish started", {
       operationId,
       accessMode: input.accessMode,

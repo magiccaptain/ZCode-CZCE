@@ -1,3 +1,4 @@
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 /* eslint-disable max-lines -- 共享能力外壳聚合 Scope，并承载 Plugin tabs 与独立 Commands 入口。 */
 import { PluginAddMenu } from "@/settings/PluginAddMenu.js";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
@@ -12,6 +13,7 @@ import {
   UploadCloud,
 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import { PluginIcon } from "@/components/PluginIcon.js";
 import { toast } from "@/components/ui/toast.js";
 import {
   DropdownMenu,
@@ -160,6 +162,8 @@ function PluginList({
   onVisibleCountChange?: (count: number) => void;
 }) {
   const { intl, locale } = useZCodeIntl();
+  const platform = useOptionalPlatform();
+  const marketplaceEnabled = platform?.productCapabilities?.pluginMarketplace !== false;
   const targetServiceResolution = useWorkspaceServicesResolution(
     target?.workspacePath,
     target?.remoteSessionId,
@@ -184,6 +188,7 @@ function PluginList({
   const currentWorkspaceIdentity = usePluginManagementStore((state) => state.workspaceIdentity);
   const initialize = usePluginManagementStore((state) => state.initialize);
   const setEnabled = usePluginManagementStore((state) => state.setEnabled);
+  const restoreBuiltin = usePluginManagementStore((state) => state.restoreBuiltin);
   const updatePlugin = usePluginManagementStore((state) => state.updatePlugin);
   const configurePlugin = usePluginManagementStore((state) => state.configurePlugin);
   const currentConfigScope = usePluginManagementStore((state) => state.configScope);
@@ -295,12 +300,22 @@ function PluginList({
     isComputerUseRemoteOrLinux(computerUseAvailability) &&
     matchesComputerUseSearch(searchQuery),
   );
+  // 恢复属于 User package 生命周期；inventory 由原 CLI owner 提供，不恢复商店页。
+  const visibleRestorableBuiltins =
+    !marketplaceEnabled && configScope === "user" && storeMatchesTarget
+      ? restorableBuiltins.filter((plugin) =>
+          resolvePluginDisplayName(plugin, locale)
+            .toLowerCase()
+            .includes(searchQuery.trim().toLowerCase()),
+        )
+      : [];
   const hasEmptySearchResult = Boolean(
     target &&
     !loading &&
     searchQuery.trim() &&
     visibleInstalledPlugins.length === 0 &&
     visibleBuiltInPlugins.length === 0 &&
+    visibleRestorableBuiltins.length === 0 &&
     !showUnavailableComputerUse,
   );
   const hideInstalledGroup = Boolean(searchQuery.trim() && visibleInstalledPlugins.length === 0);
@@ -314,6 +329,7 @@ function PluginList({
       workspaceIdentity: target.workspaceIdentity,
       configScope,
       pluginService: pluginManagementService,
+      productCapabilities: platform?.productCapabilities,
     });
   }, [initialize, pluginManagementService, configScope, target, targetServiceResolution.rpcReady]);
   const handleSetEnabled = useCallback(
@@ -455,12 +471,15 @@ function PluginList({
         configScope === "workspace"
           ? (pluginId) => void handleResetPluginConfig(pluginId)
           : undefined,
-      onUpdate: (pluginId) => void handleUpdatePlugin(pluginId),
+      onUpdate: (pluginId) => {
+        if (marketplaceEnabled) void handleUpdatePlugin(pluginId);
+      },
       operationId,
       togglingPluginId,
     }),
     [
       configScope,
+      marketplaceEnabled,
       handleResetPluginConfig,
       handleSetEnabled,
       handleUpdatePlugin,
@@ -478,6 +497,7 @@ function PluginList({
       workspaceIdentity: target.workspaceIdentity,
       configScope,
       pluginService: pluginManagementService,
+      productCapabilities: platform?.productCapabilities,
     });
   }, [initialize, pluginManagementService, configScope, target, targetServiceResolution.rpcReady]);
 
@@ -807,7 +827,7 @@ function PluginList({
               </ControlHintTooltip>
             ) : null}
             <SettingsResourceHeaderActions onRefresh={() => void refreshAfterPluginChange()} />
-            {configScope === "user" ? (
+            {configScope === "user" && marketplaceEnabled ? (
               <>
                 <Button
                   type="button"
@@ -886,6 +906,40 @@ function PluginList({
           {renderPluginRows(visibleBuiltInPlugins)}
         </div>
       ) : null}
+      {visibleRestorableBuiltins.length > 0 && targetServiceResolution.rpcReady ? (
+        <div className="space-y-4">
+          <h3 className="text-ui-base font-medium text-foreground">
+            {intl.formatMessage({ id: "settings.plugin.plugins.builtIn" })} ·{" "}
+            {intl.formatMessage({ id: "settings.plugins.restore" })}
+          </h3>
+          <div className="overflow-hidden rounded-xl bg-surface">
+            {visibleRestorableBuiltins.map((plugin) => (
+              <div key={plugin.id} className="flex min-w-0 items-center gap-3 px-4 py-3">
+                {/* 离线 inventory 的 listing.icon 可能指向市场 CDN；仅传 identity，复用打包图标或本地兜底。 */}
+                <PluginIcon pluginId={plugin.id} className="size-9 bg-background" />
+                <span className="min-w-0 flex-1 text-ui-base">
+                  {resolvePluginDisplayName(plugin, locale)}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  data-testid="plugin-settings-restore-builtin"
+                  data-plugin-id={plugin.id}
+                  disabled={operationId !== null}
+                  onClick={async () => {
+                    await restoreBuiltin(plugin.id, pluginManagementService);
+                    const error = usePluginManagementStore.getState().error;
+                    if (error) toast(error, { variant: "warning" });
+                  }}
+                >
+                  {intl.formatMessage({ id: "settings.plugins.restore" })}
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {showUnavailableComputerUse ? (
         <div className="space-y-4">
           <h3 className="flex h-7 items-center text-ui-base font-medium text-foreground">
@@ -960,6 +1014,8 @@ export function PluginsSection({
   showMarketplaceBreadcrumb = false,
 }: PluginsSectionProps) {
   const { intl } = useZCodeIntl();
+  const platform = useOptionalPlatform();
+  const marketplaceEnabled = platform?.productCapabilities?.pluginMarketplace !== false;
   const tabs = useTabStore((state) => state.tabs);
   const storeActiveWorkspacePath = useTabStore((state) => state.activeWorkspacePath);
   const storeActiveWorkspaceIdentity = useTabStore((state) => state.activeWorkspaceIdentity);
@@ -1044,10 +1100,10 @@ export function PluginsSection({
     (_returnScopeKey?: string, intent?: "add-marketplace") => {
       // Workspace 是已安装 Plugin 的配置视图，不提供 Marketplace 入口；市场只在 User
       // 视图中负责 package/cache 生命周期。
-      if (selectedScope.kind !== "user") return;
+      if (!marketplaceEnabled || selectedScope.kind !== "user") return;
       onOpenPluginStore("user", intent);
     },
-    [onOpenPluginStore, selectedScope.kind],
+    [marketplaceEnabled, onOpenPluginStore, selectedScope.kind],
   );
   const target = selectedScope.kind === "workspace" ? selectedScope.tab : preferredHost;
   const effectiveMcpScopeKey =
@@ -1290,11 +1346,15 @@ export function PluginsSection({
               isMacDesktop={isMacDesktop}
               isWindowsDesktop={isWindowsDesktop}
               searchQuery={searchQueries.plugins}
-              onAdd={selectedScope.kind === "user" ? openPluginStoreForSelectedScope : undefined}
+              onAdd={
+                marketplaceEnabled && selectedScope.kind === "user"
+                  ? openPluginStoreForSelectedScope
+                  : undefined
+              }
               onCreateTask={onCreateTask}
               onDetailOpenChange={setPluginDetailOpen}
               onOpenPluginStore={openPluginStoreForSelectedScope}
-              showMarketplaceBreadcrumb={showMarketplaceBreadcrumb}
+              showMarketplaceBreadcrumb={marketplaceEnabled && showMarketplaceBreadcrumb}
               onVisibleCountChange={updatePluginCount}
             />
           </TabsContent>
@@ -1324,7 +1384,7 @@ export function PluginsSection({
                 onOpenPluginStore={
                   selectedScope.kind === "user" ? openPluginStoreForSelectedScope : undefined
                 }
-                showMarketplaceBreadcrumb={showMarketplaceBreadcrumb}
+                showMarketplaceBreadcrumb={marketplaceEnabled && showMarketplaceBreadcrumb}
               />
             ) : (
               <EmptyState
@@ -1350,7 +1410,7 @@ export function PluginsSection({
                 onOpenPluginStore={
                   selectedScope.kind === "user" ? openPluginStoreForSelectedScope : undefined
                 }
-                showMarketplaceBreadcrumb={showMarketplaceBreadcrumb}
+                showMarketplaceBreadcrumb={marketplaceEnabled && showMarketplaceBreadcrumb}
                 reportDetailBreadcrumb={mode === "plugin"}
                 onVisibleCountChange={updateSkillCount}
               />

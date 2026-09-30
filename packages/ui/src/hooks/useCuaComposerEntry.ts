@@ -93,6 +93,7 @@ export function useCuaComposerEntry({
       workspacePath,
       ...(workspaceIdentity ? { workspaceIdentity } : {}),
       pluginService: pluginManagementService,
+      productCapabilities: platform.productCapabilities,
     });
   }, [
     hiddenBySettings,

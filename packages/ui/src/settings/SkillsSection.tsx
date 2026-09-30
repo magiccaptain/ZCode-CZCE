@@ -231,6 +231,7 @@ export function SkillsSection({
       workspaceIdentity: activeWorkspaceIdentity,
       configScope: scopeFilter,
       pluginService: pluginManagementService,
+      productCapabilities: platform.productCapabilities,
     });
   }, [
     activeWorkspaceIdentity,

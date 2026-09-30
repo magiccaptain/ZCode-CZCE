@@ -10,6 +10,11 @@ import {
   isProductSubscriptionEnabled,
   type AccountProductCapabilities,
 } from "./productAccountBoundary.js";
+import type { PluginMarketplaceCapabilities } from "./pluginMarketplaceBoundary.js";
+export {
+  buildPluginMarketplaceSpawnEnv,
+  type PluginMarketplaceCapabilities,
+} from "./pluginMarketplaceBoundary.js";
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -1345,8 +1350,10 @@ export function createLocalServices(options: {
   serviceAuthorityMode?: ServiceAuthorityMode;
   cuaProductMcpServerResolver?: CuaProductMcpServerResolver;
   /** Desktop 产品组装层传入同源只读视图；不在 services 复制固定产品事实。 */
-  productCapabilities?: Readonly<Pick<ProductCapabilities, "telemetry">> &
-    AccountProductCapabilities;
+  productCapabilities?: Readonly<Partial<Pick<ProductCapabilities, "telemetry">>> &
+    AccountProductCapabilities &
+    PluginMarketplaceCapabilities &
+    Readonly<Partial<Pick<ProductCapabilities, "sharing">>>;
   agentRuntimeContext?: {
     getDeviceMid?: () => string | undefined;
     runtimeSurface?: "desktop_local_host" | "remote_workspace_host";
@@ -1707,7 +1714,9 @@ export function createLocalServices(options: {
     // mcp/list 的 host 消费点收拢到 mcpSync 服务；真实状态检查仍在 agent 进程。
     listMcpServerStatuses: (params) => zcodeAgentService.listMcpServerStatuses(params),
   });
-  const pluginSyncService = createPluginSyncService();
+  const pluginSyncService = createPluginSyncService({
+    productCapabilities: options.productCapabilities,
+  });
   const subagentsService = createSubagentsService({
     isDesktopRuntime: true,
   });
@@ -2130,6 +2139,7 @@ export function createLocalServices(options: {
           resolveOffPeakTaskService: () => offPeakTaskServiceForAgent,
         };
   const zcodeAgentService = createZCodeAgentService({
+    productCapabilities: options.productCapabilities,
     ...(agentAccountProviderConfigSource
       ? { accountProviderConfigSource: agentAccountProviderConfigSource }
       : {}),
@@ -2445,6 +2455,7 @@ export function createLocalServices(options: {
     createLocalMediaPreviewUrl: buildLocalMediaPreviewUrl,
   });
   const conversationShareClient = new ConversationShareHttpClient({
+    productCapabilities: options.productCapabilities,
     // 分享运行时始终走真实 API；测试/Mock 场景应在 service 单测或 Web fixture 中显式注入，
     // 不能让开发环境默认生成仅存在于进程内存的 mock-share 链接。
     apiClient,
@@ -2464,6 +2475,7 @@ export function createLocalServices(options: {
         message: "Conversation publishing is not available for remote workspaces",
       })
     : new ConversationShareService({
+        productCapabilities: options.productCapabilities,
         zcodeAgentService,
         zcodeSessionService,
         client: conversationShareClient,
@@ -2617,9 +2629,21 @@ export function createLocalServices(options: {
     // 合并 MCP/Plugin Management 服务装配时误删了 plugin-sync 注册，
     // RemoteServiceAccess 仍会请求该频道，导致本地候选枚举超时、远端同步无法开始。
     .register(IPluginSyncService, pluginSyncService)
-    .register(IPluginsService, createPluginsService({ isDesktopRuntime: true }))
+    .register(
+      IPluginsService,
+      createPluginsService({
+        isDesktopRuntime: true,
+        productCapabilities: options.productCapabilities,
+      }),
+    )
     // 设置页插件管理薄服务——plugins/* 旧协议词的 host 侧唯一消费点。
-    .register(IPluginManagementService, createPluginManagementService({ zcodeAgentService }))
+    .register(
+      IPluginManagementService,
+      createPluginManagementService({
+        zcodeAgentService,
+        productCapabilities: options.productCapabilities,
+      }),
+    )
     .register(ISubagentsService, subagentsService)
     .register(ICommandsService, createCommandsService({ isDesktopRuntime: true }))
     .register(

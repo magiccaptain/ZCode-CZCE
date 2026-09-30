@@ -39,6 +39,7 @@ import {
   installZCodeMarketplacePlugin,
   removeZCodePluginMarketplace,
   resolveZCodePlugins,
+  listRestorableBuiltinPlugins,
   resetZCodePluginConfig,
   restoreBuiltinPlugin as restoreBuiltinPluginCore,
   setZCodePluginEnabled,
@@ -46,7 +47,10 @@ import {
   updateZCodePluginMarketplace,
   validateZCodePlugin,
 } from "../plugins.js";
-import { listInstalledPluginRecords } from "@zcode/adapters/plugins";
+import {
+  assertPluginMarketplaceEnabled,
+  listInstalledPluginRecords,
+} from "@zcode/adapters/plugins";
 import { withPluginStorageLock } from "../lib/plugin-storage-lock.js";
 import { getCliStorageRoot, getPluginStorageRoot } from "../app/paths.js";
 import { resolveOfficialPluginHostMcpServerNames } from "../app/official-plugin-definitions.js";
@@ -222,6 +226,11 @@ export async function listPlugins(
         new Set(plugins.map((plugin) => plugin.id)),
       ),
     ],
+    // 只派生 bundled suppression，不调用市场 overview 或联网目录。
+    restorableBuiltins: listRestorableBuiltinPlugins({
+      configResult,
+      workingDirectory: params.workspace.workspacePath,
+    }).map(toAvailablePluginSummary),
     diagnostics: outcome.diagnostics.map(toPluginDiagnostic),
   };
 }
@@ -255,6 +264,7 @@ export async function getPluginsOverview(
   context: ZCodeProtocolAgentServerContext,
   rawParams: unknown,
 ): Promise<ZCodePluginsOverviewResult> {
+  assertPluginMarketplaceEnabled();
   const params = parseParams(zcodePluginsOverviewParamsSchema, rawParams);
   const overview = getZCodePluginsOverview({
     configResult: createPluginConfigView(
@@ -280,6 +290,7 @@ export async function addPluginMarketplace(
   rawParams: unknown,
   abortSignal?: AbortSignal,
 ): Promise<ZCodePluginsMarketplaceMutationResult> {
+  assertPluginMarketplaceEnabled();
   const params = parseParams(zcodePluginsMarketplaceAddParamsSchema, rawParams);
   const pluginStorageRoot = resolvePluginStorageRoot(params.workspace.workspacePath);
   const marketplace = await withPluginStorageLock(pluginStorageRoot, async () =>
@@ -298,6 +309,7 @@ export async function removePluginMarketplace(
   context: ZCodeProtocolAgentServerContext,
   rawParams: unknown,
 ): Promise<ZCodePluginsMarketplaceMutationResult> {
+  assertPluginMarketplaceEnabled();
   const params = parseParams(zcodePluginsMarketplaceRemoveParamsSchema, rawParams);
   const pluginStorageRoot = resolvePluginStorageRoot(params.workspace.workspacePath);
   await withPluginStorageLock(pluginStorageRoot, async () =>
@@ -315,6 +327,7 @@ export async function updatePluginMarketplace(
   rawParams: unknown,
   abortSignal?: AbortSignal,
 ): Promise<ZCodePluginsMarketplaceMutationResult> {
+  assertPluginMarketplaceEnabled();
   const params = parseParams(zcodePluginsMarketplaceUpdateParamsSchema, rawParams);
   const pluginStorageRoot = resolvePluginStorageRoot(params.workspace.workspacePath);
   const result = await withPluginStorageLock(pluginStorageRoot, async () =>
@@ -336,6 +349,7 @@ export async function installPlugin(
   rawParams: unknown,
   abortSignal?: AbortSignal,
 ): Promise<ZCodePluginsInstallResult> {
+  assertPluginMarketplaceEnabled();
   const params = parseParams(zcodePluginsInstallParamsSchema, rawParams);
   const pluginStorageRoot = resolvePluginStorageRoot(params.workspace.workspacePath);
   const result = await withPluginStorageLock(pluginStorageRoot, async () =>
@@ -379,6 +393,7 @@ export async function updatePlugin(
   context: ZCodeProtocolAgentServerContext,
   rawParams: unknown,
 ): Promise<ZCodePluginsInstallResult> {
+  assertPluginMarketplaceEnabled();
   const params = parseParams(zcodePluginsUpdateParamsSchema, rawParams);
   const pluginStorageRoot = resolvePluginStorageRoot(params.workspace.workspacePath);
   const installed = listInstalledPluginRecords(pluginStorageRoot).filter((record) => {
@@ -462,6 +477,7 @@ export async function validatePlugin(
   context: ZCodeProtocolAgentServerContext,
   rawParams: unknown,
 ): Promise<ZCodePluginsValidateResult> {
+  assertPluginMarketplaceEnabled();
   const params = parseParams(zcodePluginsValidateParamsSchema, rawParams);
   const pluginStorageRoot = resolvePluginStorageRoot(params.workspace.workspacePath);
   const diagnostics = await withPluginStorageLock(pluginStorageRoot, async () =>
@@ -488,6 +504,7 @@ export async function describePlugin(
   context: ZCodeProtocolAgentServerContext,
   rawParams: unknown,
 ): Promise<ZCodePluginsDescribeResult> {
+  assertPluginMarketplaceEnabled();
   const params = parseParams(zcodePluginsDescribeParamsSchema, rawParams);
   const pluginStorageRoot = resolvePluginStorageRoot(params.workspace.workspacePath);
   const result = await withPluginStorageLock(pluginStorageRoot, async () =>

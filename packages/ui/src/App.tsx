@@ -844,13 +844,14 @@ export function App({
     setWorkspaceMainView("automations");
   }, []);
   const handleNavigateToPluginStoreMain = useCallback(() => {
+    if (platform.productCapabilities?.pluginMarketplace === false) return;
     // 通用入口没有 scope 上下文，默认回到 User；Settings 显式带 scope 的入口会在
     // 导航完成后覆盖这次默认值，避免沿用上一次 Workspace scope。
     setPluginStoreReturnScopeKey("user");
     setPluginStoreOpenVersion((version) => version + 1);
     preserveNextSettingsExit();
     setWorkspaceMainView("plugin-store");
-  }, [preserveNextSettingsExit]);
+  }, [platform.productCapabilities, preserveNextSettingsExit]);
   const handleOpenAutomationConsumed = useCallback(() => {
     setOpenAutomationId(null);
     setOpenAutomationTab(null);
@@ -876,6 +877,7 @@ export function App({
   });
   const handleOpenPluginStoreForScope = useCallback(
     (_target: PluginStoreOpenTarget = {}) => {
+      if (platform.productCapabilities?.pluginMarketplace === false) return;
       // Workspace Marketplace 已收敛为全局入口。兼容旧事件中的 Workspace key，但返回
       // 目标统一归一为 User，避免旧 sessionStorage/同窗口事件把设置页带回失效 scope。
       const returnScopeKey = "user";
@@ -887,11 +889,11 @@ export function App({
       handleOpenPluginStore();
       setPluginStoreReturnScopeKey(returnScopeKey);
     },
-    [handleOpenPluginStore, workspaceMainView],
+    [handleOpenPluginStore, platform.productCapabilities, workspaceMainView],
   );
   useEffect(
-    () => addPluginStoreOpenListener(handleOpenPluginStoreForScope),
-    [handleOpenPluginStoreForScope],
+    () => addPluginStoreOpenListener(handleOpenPluginStoreForScope, platform.productCapabilities),
+    [handleOpenPluginStoreForScope, platform.productCapabilities],
   );
   const handleSelectAdjacentConversation = useCallback(
     (direction: "previous" | "next") => {

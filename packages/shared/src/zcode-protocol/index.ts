@@ -2583,14 +2583,6 @@ export const zcodePluginsListParamsSchema = z
     configScope: zcodePluginScopeSchema.optional(),
   })
   .strict();
-export const zcodePluginsListResultSchema = z
-  .object({
-    plugins: z.array(zcodePluginInfoSchema),
-    diagnostics: z.array(zcodePluginDiagnosticSchema),
-  })
-  .strict();
-export type ZCodePluginsListResult = z.infer<typeof zcodePluginsListResultSchema>;
-
 // ── Plugin 对话引用 catalog──
 // Session-scoped 只读投影：带 sessionId → 该 Session 创建时冻结的身份 catalog；
 // 不带 → workspace 当前 catalog（新建草稿 Picker）。身份与能力字段保持
@@ -3090,6 +3082,16 @@ export const zcodeAvailablePluginSummarySchema = z
   })
   .strict();
 export type ZCodeAvailablePluginSummary = z.infer<typeof zcodeAvailablePluginSummarySchema>;
+
+export const zcodePluginsListResultSchema = z
+  .object({
+    plugins: z.array(zcodePluginInfoSchema),
+    diagnostics: z.array(zcodePluginDiagnosticSchema),
+    // 旧 Agent 可缺席；新 Agent 只返回本地 suppression inventory，不代表市场可用。
+    restorableBuiltins: z.array(zcodeAvailablePluginSummarySchema).optional(),
+  })
+  .strict();
+export type ZCodePluginsListResult = z.infer<typeof zcodePluginsListResultSchema>;
 
 export const zcodeInstalledPluginSummarySchema = z
   .object({

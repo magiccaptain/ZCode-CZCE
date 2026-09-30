@@ -1,3 +1,4 @@
+import { assertPluginMarketplaceEnabled } from "./product-capability.js";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -71,6 +72,7 @@ type ZipEntryKind = "directory" | "file";
 export async function resolveZipPluginSource(
   input: ResolveZipPluginSourceInput,
 ): Promise<ResolvedZipPluginSourceRoot> {
+  assertPluginMarketplaceEnabled();
   validateZipSourceInput(input);
   const resolved = await resolveHttpZipSource({
     headers: input.headers,
@@ -86,6 +88,8 @@ export async function resolveZipPluginSource(
 export async function resolveHttpZipSource(
   input: ResolveHttpZipSourceInput,
 ): Promise<ResolvedZipPluginSourceRoot> {
+  // 排队的 source 下载也必须在临时目录/网络请求前拒绝，不能只保护商店 RPC。
+  assertPluginMarketplaceEnabled();
   validateZipDownloadUrl(input.url);
   validateZipHeaders(input.headers);
   if (input.path !== undefined) normalizeZipRelativePath(input.path);

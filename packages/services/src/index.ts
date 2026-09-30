@@ -33,6 +33,7 @@ export {
 export type { IServiceAccessor } from "./accessor.js";
 export {
   ConversationShareServiceError,
+  CONVERSATION_SHARING_UNAVAILABLE,
   createUnsupportedConversationShareService,
   IConversationShareService,
 } from "./conversation-share/conversationShare.js";

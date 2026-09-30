@@ -1,3 +1,4 @@
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { ChevronDown, Loader2, Plus, Sparkles } from "lucide-react";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 import { Button } from "@/components/ui/button.js";
@@ -21,6 +22,8 @@ export function PluginAddMenu({
 }) {
   const { intl } = useZCodeIntl();
   const creator = usePluginCreator(onCreateTask);
+  const marketplaceEnabled =
+    useOptionalPlatform()?.productCapabilities?.pluginMarketplace !== false;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -39,13 +42,17 @@ export function PluginAddMenu({
           <Sparkles className="size-4" aria-hidden="true" />
           {intl.formatMessage({ id: "pluginCreator.create" })}
         </DropdownMenuItem>
-        <DropdownMenuItem
-          data-testid="plugin-store-add-source-menu-item"
-          onSelect={onAddMarketplace}
-        >
-          <Plus className="size-4" aria-hidden="true" />
-          {intl.formatMessage({ id: "pluginCreator.addMarketplace" })}
-        </DropdownMenuItem>
+        {marketplaceEnabled ? (
+          <DropdownMenuItem
+            data-testid="plugin-store-add-source-menu-item"
+            onSelect={() => {
+              if (marketplaceEnabled) onAddMarketplace();
+            }}
+          >
+            <Plus className="size-4" aria-hidden="true" />
+            {intl.formatMessage({ id: "pluginCreator.addMarketplace" })}
+          </DropdownMenuItem>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );
