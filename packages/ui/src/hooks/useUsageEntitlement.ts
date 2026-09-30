@@ -7,6 +7,7 @@ import type {
 } from "@zcode/shared";
 import type { IUsageStatsService } from "@zcode/services";
 import { useOptionalBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
+import { useOptionalPlatform } from "./usePlatform.js";
 import { useStableAccountAccess } from "@/hooks/useStableAccountAccess.js";
 import { logger } from "@/logger.js";
 import {
@@ -160,7 +161,12 @@ export function useUsageEntitlementWithService(
   const latestSnapshotRef = useRef<UsageEntitlementSnapshot | null>(null);
   // Web/SSR 场景可能只渲染侧栏或设置入口，没有挂载 ServiceProvider。
   // 这里降级为空快照，避免 Usage banner 因服务上下文缺失阻断整棵 UI。
-  const enabled = (options.enabled ?? true) && Boolean(usageStatsService);
+  const capabilities = useOptionalPlatform()?.productCapabilities;
+  const enabled =
+    capabilities?.productAccount !== false &&
+    capabilities?.productSubscription !== false &&
+    (options.enabled ?? true) &&
+    Boolean(usageStatsService);
   const includeSubscription = options.includeSubscription ?? false;
   const preferredProviderId = options.preferredProviderId;
   // Provider Settings schema 每次解析会产生等值新对象，不能因引用变化重启权益请求。
@@ -450,9 +456,9 @@ export function useUsageEntitlementWithService(
   ]);
 
   return {
-    snapshot: state.snapshot,
-    loading: state.loading,
-    error: state.error,
+    snapshot: enabled ? state.snapshot : null,
+    loading: enabled && state.loading,
+    error: enabled ? state.error : null,
     refresh,
   };
 }

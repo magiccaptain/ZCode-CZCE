@@ -2,6 +2,8 @@ import { DESKTOP_PRODUCT_CAPABILITIES } from "./productCapabilities.js";
 /* eslint-disable max-lines -- 远程连接、OAuth 回调、遥测和通知 IPC 共用窗口级上下文，集中注册避免跨文件状态漂移。 */
 import { app, BrowserWindow, ipcMain, shell } from "electron";
 import type armsRum from "@arms/rum-electron";
+import { PRODUCT_ACCOUNT_UNAVAILABLE, PRODUCT_SUBSCRIPTION_UNAVAILABLE } from "@zcode/services";
+import { isOAuthCallbackUrl } from "./desktopDeepLinkUrl.js";
 import { getDesktopArmsRum } from "./desktopArmsRum.js";
 import {
   armsCustomEventPayloadSchema,
@@ -11,6 +13,8 @@ import {
   normalizeUnknownError,
   InternalChannels,
   isTrustedCodingPlanWebviewOrigin,
+  resolveRuntimeZCodeEndpointOrigin,
+  buildBigModelApiUrl,
   resolveZaiBusinessBaseUrl,
   PlatformChannels,
   remoteTargetSchema,
@@ -142,6 +146,30 @@ function shouldKeepCodingPlanOpenExternalInWebview(currentUrl: string, targetUrl
   );
 }
 
+function isProductOAuthExternalUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    if (isOAuthCallbackUrl(url)) return true;
+    // 复用产品 endpoint 与 callback 解析，不封禁普通 Provider/MCP OAuth 域名。
+    const isProductRedirect = (target: URL): boolean =>
+      isOAuthCallbackUrl(target) ||
+      (isTrustedCodingPlanWebviewOrigin(target.origin) && target.pathname === "/app/oauth/login");
+    if (url.origin === resolveRuntimeZCodeEndpointOrigin() && url.pathname === "/app/oauth/login")
+      return true;
+    if (
+      url.origin === new URL(buildBigModelApiUrl(process.env, "/login")).origin &&
+      url.pathname === "/login"
+    )
+      return true;
+    return ["redirect", "redirect_uri"].some((key) => {
+      const target = url.searchParams.get(key);
+      return target ? isProductRedirect(new URL(target, url.origin)) : false;
+    });
+  } catch {
+    return false;
+  }
+}
+
 export function registerRemoteIpcHandlers(options: {
   logger: {
     info: (...args: unknown[]) => void;
@@ -262,6 +290,10 @@ export function registerRemoteIpcHandlers(options: {
   }
 
   ipcMain.on(PlatformChannels.OAuthRegisterState, (event, payload: unknown) => {
+    if (!DESKTOP_PRODUCT_CAPABILITIES.productAccount) {
+      options.logger.warn(PRODUCT_ACCOUNT_UNAVAILABLE);
+      return;
+    }
     const registration = parseOAuthStateRegistration(payload);
     if (!registration) {
       options.logger.warn("[oauth-register-state] invalid payload", payload);
@@ -287,6 +319,21 @@ export function registerRemoteIpcHandlers(options: {
     const senderFrameUrl =
       typeof event.senderFrame?.url === "string" ? event.senderFrame.url : undefined;
     const sourceUrl = senderFrameUrl ?? request.sourceUrl ?? senderUrl;
+    // 单向旧 IPC 没有结果通道：记录明确不可用码，不能进入浏览器或 guest 导航。
+    if (!DESKTOP_PRODUCT_CAPABILITIES.productAccount && isProductOAuthExternalUrl(url)) {
+      options.logger.warn(PRODUCT_ACCOUNT_UNAVAILABLE);
+      return;
+    }
+    if (
+      (!DESKTOP_PRODUCT_CAPABILITIES.productSubscription ||
+        !DESKTOP_PRODUCT_CAPABILITIES.productAccount) &&
+      (isCodingPlanWebviewUrl(url) ||
+        isCodingPlanPaymentCallbackUrl(url) ||
+        isCodingPlanWebviewUrl(sourceUrl))
+    ) {
+      options.logger.warn(PRODUCT_SUBSCRIPTION_UNAVAILABLE);
+      return;
+    }
     if (
       typeof sender?.loadURL === "function" &&
       shouldKeepCodingPlanOpenExternalInWebview(sourceUrl, url)
@@ -376,6 +423,7 @@ export function registerRemoteIpcHandlers(options: {
   });
 
   ipcMain.on(PlatformChannels.OAuthCallbackHandled, (event) => {
+    if (!DESKTOP_PRODUCT_CAPABILITIES.productAccount) return;
     options.appTelemetryRuntime.onOAuthCallbackHandled({ rendererId: event.sender.id });
     options.onOAuthCallbackHandledSideEffect?.();
   });

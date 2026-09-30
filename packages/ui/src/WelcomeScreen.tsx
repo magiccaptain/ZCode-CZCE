@@ -19,6 +19,7 @@ import {
 import { Alert, AlertDescription } from "./components/ui/alert.js";
 import { Button } from "./components/ui/button.js";
 import { ZCodeAboutLogo } from "@/components/ui/ZCodeAboutLogo.js";
+import { usePlatform } from "./hooks/usePlatform.js";
 import { useOAuth } from "./hooks/useOAuth.js";
 import { useZCodeIntl } from "./i18n/IntlProvider.js";
 import { LoginApiKeyForm } from "./login/LoginApiKeyForm.js";
@@ -33,12 +34,31 @@ interface WelcomeScreenProps {
 export type LoginCompleteReason = "oauth" | "apiKey" | "skip";
 
 export function WelcomeScreen({ onComplete }: WelcomeScreenProps) {
+  const platform = usePlatform();
+  if (platform.productCapabilities?.productAccount === false) {
+    return <LocalWelcomeScreen onComplete={onComplete} />;
+  }
   return (
     <main className="relative flex h-full min-h-dvh items-center justify-center overflow-hidden bg-background px-4 py-6 text-foreground sm:px-6">
       <ThemeHeroVisual className="absolute inset-0" />
       <div className="pointer-events-none absolute left-0 top-0 right-0 z-10 flex h-12 w-full items-center [app-region:drag]" />
       <section className="relative z-10 w-full flex flex-col gap-10 max-w-sm rounded-2xl border border-popover-border bg-background p-8 text-ui-base/relaxed shadow-md sm:p-10">
         <LoginPanel active onComplete={onComplete} />
+      </section>
+    </main>
+  );
+}
+
+function LocalWelcomeScreen({ onComplete }: WelcomeScreenProps) {
+  const { intl } = useZCodeIntl();
+  return (
+    <main className="flex h-full items-center justify-center bg-background text-foreground">
+      <section className="flex max-w-sm flex-col gap-4 p-6 text-ui-base">
+        <ZCodeAboutLogo />
+        <p>{intl.formatMessage({ id: "settings.modelProvider.localConfigurationHint" })}</p>
+        <Button onClick={() => void onComplete("skip")}>
+          {intl.formatMessage({ id: "occupationOnboarding.continue" })}
+        </Button>
       </section>
     </main>
   );

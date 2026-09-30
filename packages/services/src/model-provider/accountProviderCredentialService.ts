@@ -1,8 +1,10 @@
 import type { ProviderFamilyDomain } from "@zcode/shared";
+import type { AccountProductCapabilities } from "../productAccountBoundary.js";
 import type { AccountProviderCredentialStore } from "./accountProviderCredentialStore.js";
 import { accountProviderCredentialKey } from "./accountProviderCredentialKey.js";
 
 interface AccountProviderCredentialServiceOptions {
+  readonly productCapabilities?: AccountProductCapabilities;
   readonly credentialStore: Pick<
     AccountProviderCredentialStore,
     "loadApiKey" | "saveApiKey" | "deleteApiKey"
@@ -37,6 +39,8 @@ export function createAccountProviderCredentialService(
 
   return {
     loadCodingPlanApiKey(input) {
+      // 旧账号缓存也属于禁用来源，不能先读缓存再只阻止远端刷新。
+      if (options.productCapabilities?.productAccount === false) return Promise.resolve(null);
       const credentialKey = accountProviderCredentialKey({
         providerId: input.providerId,
         planKind: "individual-coding-plan",

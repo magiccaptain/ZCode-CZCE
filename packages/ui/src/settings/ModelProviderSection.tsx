@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useModelProviders } from "@/hooks/useModelProviders.js";
 import { resolveEntitledAccountProviderAccess } from "@/lib/accountProviderAccess.js";
+import { LocalModelProviderSection } from "./LocalModelProviderSection.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
@@ -231,7 +232,20 @@ function resolveModelProviderSideSelectionKey(
  * 模型 Provider 设置只由 SettingsPage 注入 Local Host；这里不接收 workspaceIdentity，
  * 防止远程 workspace 误将 Provider Settings 的读写路由到远端 Environment。
  */
-export function ModelProviderSection({
+export function ModelProviderSection(
+  props: Parameters<typeof AccountModelProviderSection>[0] = {},
+) {
+  const platform = usePlatform();
+  // 在账号 hooks 挂载前分流，旧 token/套餐导航不能复活；本地表单复用原服务接口。
+  return platform.productCapabilities?.productAccount === false ||
+    platform.productCapabilities?.productSubscription === false ? (
+    <LocalModelProviderSection {...props} />
+  ) : (
+    <AccountModelProviderSection {...props} />
+  );
+}
+
+function AccountModelProviderSection({
   workspacePath = "",
   connectivityWorkspacePath,
   connectivityWorkspaceRequired = false,

@@ -24,6 +24,7 @@ import {
   type ZCodeProviderAccountAccess,
 } from "@zcode/shared";
 import type { ModelSelectionView } from "@zcode/provider";
+import type { AccountProductCapabilities } from "../productAccountBoundary.js";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 
 const log = createServiceLogger("official-mcp");
@@ -92,6 +93,7 @@ function createCredentialResolvedLogKey(input: {
 let lastCredentialResolvedLogKey: string | undefined;
 
 interface OfficialMcpCredentialResolverDeps {
+  productCapabilities?: AccountProductCapabilities;
   accountRequestAuthService: {
     resolveAccessCurrent(access: ZCodeProviderAccountAccess): Promise<ZCodeAccountAccess | null>;
   };
@@ -284,6 +286,8 @@ function identityOnlyOutcome(identity: OfficialMcpIdentitySnapshot): OfficialMcp
 export async function resolveOfficialMcpCredentials(
   deps: OfficialMcpCredentialResolverDeps,
 ): Promise<OfficialMcpCredentialOutcome> {
+  // 此身份头是产品账号凭据，不是通用 MCP OAuth；关闭时不能先读取历史 token。
+  if (deps.productCapabilities?.productAccount === false) return fail("official_auth_unavailable");
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const identity = await readIdentitySnapshot(deps);
     if (!identity.ok) {

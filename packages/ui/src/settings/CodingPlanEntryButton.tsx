@@ -1,3 +1,4 @@
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import type { ComponentProps } from "react";
 import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -24,7 +25,10 @@ export function CodingPlanEntryButton({
   bypassGate = false,
   ...props
 }: ComponentProps<typeof Button> & { bypassGate?: boolean }) {
+  const capabilities = useOptionalPlatform()?.productCapabilities;
   const gate = useCodingPlanEntryGate();
+  if (capabilities?.productAccount === false || capabilities?.productSubscription === false)
+    return null;
   const status = bypassGate ? "ready" : gate.status;
   return (
     <Button

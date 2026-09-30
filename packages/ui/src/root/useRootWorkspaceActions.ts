@@ -283,6 +283,7 @@ export function useRootWorkspaceActions({
   );
 
   const handleLogout = useCallback(async () => {
+    if (platform.productCapabilities?.productAccount === false) return;
     let runningAgentSessionCount: number | null = null;
     try {
       const sessionActivity = await platform.getDesktopSessionActivity?.();

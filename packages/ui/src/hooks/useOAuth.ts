@@ -25,6 +25,7 @@ type OAuthStatus = "idle" | "waiting" | "error";
 export function useOAuth() {
   const { oauthService } = useServices();
   const platform = usePlatform();
+  const accountEnabled = platform.productCapabilities?.productAccount !== false;
   const { intl } = useZCodeIntl();
   const [status, setStatus] = useState<OAuthStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +37,10 @@ export function useOAuth() {
   const setOAuthPollingActive = useZCodeStore((state) => state.setOAuthPollingActive);
 
   const refreshProviders = useCallback(async () => {
+    if (!accountEnabled) {
+      setLoadingProviders(false);
+      return;
+    }
     try {
       setLoadingProviders(true);
       const providerList = await oauthService.getProviders();
@@ -62,7 +67,7 @@ export function useOAuth() {
     } finally {
       setLoadingProviders(false);
     }
-  }, [oauthService]);
+  }, [accountEnabled, oauthService]);
 
   useEffect(() => {
     void refreshProviders();
@@ -70,6 +75,8 @@ export function useOAuth() {
 
   const startLogin = useCallback(
     async (provider: OAuthProviderId, options: { purpose?: LoginEntryPurpose } = {}) => {
+      // 旧 intent/快捷命令也不能启动浏览器授权；服务端仍有独立 guard。
+      if (!accountEnabled) return;
       const loginAttempt = ++loginAttemptRef.current;
       try {
         setStatus("waiting");
@@ -123,19 +130,19 @@ export function useOAuth() {
         setPendingProvider(null);
       }
     },
-    [intl, oauthService, platform, setOAuthPollingActive],
+    [accountEnabled, intl, oauthService, platform, setOAuthPollingActive],
   );
 
   const cancel = useCallback(
     async (provider?: OAuthProviderId) => {
       loginAttemptRef.current += 1;
-      await oauthService.cancelPending(provider);
+      if (accountEnabled) await oauthService.cancelPending(provider);
       setOAuthPollingActive(false);
       setStatus("idle");
       setError(null);
       setPendingProvider(null);
     },
-    [oauthService, setOAuthPollingActive],
+    [accountEnabled, oauthService, setOAuthPollingActive],
   );
 
   const reset = useCallback(() => {

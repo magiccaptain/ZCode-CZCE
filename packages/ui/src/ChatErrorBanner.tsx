@@ -4,6 +4,7 @@ import { CodingPlanEntryButton } from "@/settings/CodingPlanEntryButton.js";
  *
  * 显示 ZCode Agent 链路中的错误，带 traceId 方便排查。
  */
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { useState } from "react";
 import {
   MEDIA_BUDGET_CURRENT_ATTACHMENT_TOO_LARGE_ERROR_CODE,
@@ -12,6 +13,7 @@ import {
   TID_CHAT_ERROR_DETAILS_BUTTON,
   TID_CHAT_ERROR_BANNER,
   TID_CHAT_ERROR_HOOK_ICON,
+  type ProductCapabilities,
 } from "@zcode/shared";
 import { AnchorIcon, CopyIcon, InfoIcon, RocketIcon, SettingsIcon, X } from "lucide-react";
 import { useZCodeIntl } from "./i18n/IntlProvider.js";
@@ -71,6 +73,7 @@ function isModelConfigMissingError(error: Pick<ZCodeUiError, "code" | "message">
 export function resolveChatErrorBannerDisplayMessage(
   error: ZCodeUiError,
   intl: IntlInstance,
+  capabilities?: Pick<ProductCapabilities, "productAccount" | "productSubscription">,
 ): string {
   if (isModelConfigMissingError(error)) {
     return intl.formatMessage({ id: "chat.error.noAvailableModel" });
@@ -80,6 +83,9 @@ export function resolveChatErrorBannerDisplayMessage(
     resolveOffPeakTicketExpiredBusinessCode(error.code, error.message) ?? error.code;
   const providerBusinessMessageId = getProviderBusinessErrorMessageId(providerBusinessCode);
   if (providerBusinessMessageId) {
+    // 本地 Fork 不使用产品登录/升级文案覆盖外部 Provider 的真实鉴权与额度错误。
+    if (capabilities?.productAccount === false || capabilities?.productSubscription === false)
+      return error.message;
     return intl.formatMessage({ id: providerBusinessMessageId });
   }
 
@@ -125,10 +131,14 @@ export function ChatErrorBanner({
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const actionButtonClassName = "shrink-0";
   const iconButtonClassName = "shrink-0";
-  const localizedErrorMessage = resolveChatErrorBannerDisplayMessage(error, intl);
+  const capabilities = useOptionalPlatform()?.productCapabilities;
+  const localizedErrorMessage = resolveChatErrorBannerDisplayMessage(error, intl, capabilities);
   const modelConfigMissing = isModelConfigMissingError(error);
+  const localConfigurationRequired =
+    capabilities?.productAccount === false &&
+    (modelConfigMissing || error.code === "ZCODE_RUNTIME_MODEL_UNAVAILABLE");
   const hookBlocked = error.code === "fault.runtime.hookBlocked";
-  if (shouldSuppressChatErrorBanner(error)) {
+  if (!localConfigurationRequired && shouldSuppressChatErrorBanner(error)) {
     return null;
   }
 
@@ -203,10 +213,14 @@ export function ChatErrorBanner({
           ) : (
             <InfoIcon aria-hidden="true" className="size-4 shrink-0" />
           )}
-          <div className="min-w-0 truncate font-medium">{localizedErrorMessage}</div>
+          <div className="min-w-0 truncate font-medium">
+            {localConfigurationRequired
+              ? intl.formatMessage({ id: "settings.modelProvider.localConfigurationHint" })
+              : localizedErrorMessage}
+          </div>
         </div>
 
-        {modelConfigMissing ? (
+        {modelConfigMissing || localConfigurationRequired ? (
           <>
             <CodingPlanEntryButton
               type="button"

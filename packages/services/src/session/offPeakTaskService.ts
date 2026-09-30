@@ -9,6 +9,12 @@
    - 终态核销 outbox：终态即 settle、失败随轮询周期捎带补报、启动扫描
    - 3102 续跑：host 终态回写识别标记后调 handleTicketExpiredDuringRun → 回队重取号 */
 import { randomUUID } from "node:crypto";
+import {
+  assertProductSubscriptionEnabled,
+  isProductSubscriptionEnabled,
+  PRODUCT_SUBSCRIPTION_UNAVAILABLE,
+  type AccountProductCapabilities,
+} from "../productAccountBoundary.js";
 import { ZodError } from "zod";
 import {
   isOffPeakTerminalStatus,
@@ -32,6 +38,7 @@ const OFF_PEAK_SYNC_MAX_INTERVAL_MS = 5 * 60_000;
 const SYNC_FAILURE_BASE_MS = 10_000;
 
 interface OffPeakTaskServiceDeps {
+  productCapabilities?: AccountProductCapabilities;
   repo: OffPeakTaskRepo;
   client: OffPeakServerClient;
   /** 与 ticket/runtime 共用 resolver 后的脱敏结果，供 renderer 创建门控。 */
@@ -141,11 +148,14 @@ export class OffPeakTaskService implements IOffPeakTaskService {
   // ---- 管理操作 ----
 
   async getCodingPlanSupport(): Promise<OffPeakCodingPlanSupport> {
+    if (!isProductSubscriptionEnabled(this.deps.productCapabilities))
+      return { supported: false, reason: "connection_unavailable" };
     return this.deps.resolveCodingPlanSupport();
   }
 
   /** Host 派发前的窄检查；最终执行仍由目标 Agent ModelFactory 重新校验。 */
   async validateDispatchModelSelection(selection: ModelSelection): Promise<boolean> {
+    if (!isProductSubscriptionEnabled(this.deps.productCapabilities)) return false;
     const resolved = await this.deps.resolveModelSelection({
       modelId: selection.modelId,
       ...(selection.options?.reasoningLevel
@@ -160,11 +170,20 @@ export class OffPeakTaskService implements IOffPeakTaskService {
   }
 
   async getTakeNumberAvailability() {
+    assertProductSubscriptionEnabled(this.deps.productCapabilities);
     return this.deps.client.getTakeNumberAvailability();
   }
 
   /** 创建即取号（取号成功才落库）；失败只返回稳定分类，绝不跨 RPC 返回 raw error。 */
   async createTask(params: ZCodeOffPeakTaskCreateParams): Promise<OffPeakTaskCreateResult> {
+    if (!isProductSubscriptionEnabled(this.deps.productCapabilities))
+      return {
+        ok: false,
+        failureStage: "client_validation",
+        errorCategory: "client_validation",
+        errorCode: PRODUCT_SUBSCRIPTION_UNAVAILABLE,
+        providerName: "",
+      };
     let providerName = "";
     try {
       providerName = await this.deps.resolveTelemetryProviderName();
@@ -272,6 +291,7 @@ export class OffPeakTaskService implements IOffPeakTaskService {
    * 被终态守卫丢弃，不会覆盖 cancelled（幂等）。
    */
   async cancelTask(offPeakTaskId: string): Promise<ZCodeOffPeakTask | null> {
+    assertProductSubscriptionEnabled(this.deps.productCapabilities);
     const existing = await this.deps.repo.get(offPeakTaskId);
     if (!existing || isOffPeakTerminalStatus(existing.status)) return existing;
     const cancelled = await this.deps.repo.markTerminal(offPeakTaskId, {
@@ -297,6 +317,7 @@ export class OffPeakTaskService implements IOffPeakTaskService {
 
   /** Pause：停止本地派发，票留服务端队列继续排。 */
   async pauseTask(offPeakTaskId: string): Promise<ZCodeOffPeakTask | null> {
+    assertProductSubscriptionEnabled(this.deps.productCapabilities);
     const paused = await this.deps.repo.setPaused(offPeakTaskId, true, {
       now: this.now(),
     });
@@ -309,6 +330,7 @@ export class OffPeakTaskService implements IOffPeakTaskService {
    * 重取号回队尾（额度消耗必须由用户显式动作触发）。
    */
   async continueTask(offPeakTaskId: string): Promise<ZCodeOffPeakTask | null> {
+    assertProductSubscriptionEnabled(this.deps.productCapabilities);
     const resumed = await this.deps.repo.setPaused(offPeakTaskId, false, {
       now: this.now(),
     });
@@ -347,6 +369,7 @@ export class OffPeakTaskService implements IOffPeakTaskService {
 
   /** 删除：非终态先按取消处理（停 loop + settle），再删行；终态直接删。 */
   async deleteTask(offPeakTaskId: string): Promise<void> {
+    assertProductSubscriptionEnabled(this.deps.productCapabilities);
     const existing = await this.deps.repo.get(offPeakTaskId);
     if (!existing) return;
     if (!isOffPeakTerminalStatus(existing.status)) {
@@ -358,6 +381,7 @@ export class OffPeakTaskService implements IOffPeakTaskService {
 
   /** Delete history：仅写本地可见性标记，任务与会话继续保留。 */
   async deleteHistory(offPeakTaskId: string): Promise<ZCodeOffPeakTask | null> {
+    assertProductSubscriptionEnabled(this.deps.productCapabilities);
     const updated = await this.deps.repo.markHistoryDeleted(offPeakTaskId, {
       now: this.now(),
     });
@@ -370,6 +394,7 @@ export class OffPeakTaskService implements IOffPeakTaskService {
     offPeakTaskId: string,
     params: OffPeakUpdateTaskParams,
   ): Promise<ZCodeOffPeakTask | null> {
+    assertProductSubscriptionEnabled(this.deps.productCapabilities);
     const existing = await this.deps.repo.get(offPeakTaskId);
     if (!existing) return null;
     if (existing.status !== "queued" && existing.status !== "paused") {
@@ -448,6 +473,7 @@ export class OffPeakTaskService implements IOffPeakTaskService {
 
   /** 票据过期（active 3h 到期/ready 废票）：回队保 session → 同 task_id 重取号。 */
   async handleTicketExpiredDuringRun(offPeakTaskId: string): Promise<void> {
+    assertProductSubscriptionEnabled(this.deps.productCapabilities);
     const requeued = await this.deps.repo.requeueForContinuation(offPeakTaskId, {
       now: this.now(),
     });
@@ -489,6 +515,8 @@ export class OffPeakTaskService implements IOffPeakTaskService {
   // ---- offPeakTaskSync：批量轮询 + 晋级写回 + 核销 outbox ----
 
   startSync(): void {
+    // 旧票据/outbox 与 mock 环境都不能恢复账号套餐同步；门控必须早于 timer 与数据库读取。
+    if (!isProductSubscriptionEnabled(this.deps.productCapabilities)) return;
     if (!this.syncStopped) return;
     this.syncStopped = false;
     // 启动即扫一次未核销终态（host 启动扫描）。
@@ -526,6 +554,7 @@ export class OffPeakTaskService implements IOffPeakTaskService {
 
   /** 单次同步周期；显式调用（测试/启动扫描）不受 stopSync 影响，仅自动重排循环受控。 */
   async runSyncCycle(): Promise<void> {
+    if (!isProductSubscriptionEnabled(this.deps.productCapabilities)) return;
     if (this.syncRunning) return;
     this.syncRunning = true;
     let nextDelay = OFF_PEAK_SYNC_MAX_INTERVAL_MS;

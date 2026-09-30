@@ -35,7 +35,10 @@ import {
   type DraftSuggestedPromptItem,
 } from "@/v4/ConversationDraftSuggestedPrompts.js";
 import { buildDraftSuggestedPluginMention } from "@/v4/draftSuggestedPromptPrefill.js";
-import { resolveDraftSuggestedPromptText } from "@/v4/draftSuggestedPromptItems.js";
+import {
+  isDraftSuggestedPromptAllowedByProduct,
+  resolveDraftSuggestedPromptText,
+} from "@/v4/draftSuggestedPromptItems.js";
 import {
   DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS,
   DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS_OFFPEAK,
@@ -145,13 +148,15 @@ export function ConversationDraftSuggestedPromptsContainer({
     () =>
       (proactive ? recommendedItems : allItems).filter(
         (item) =>
-          !item.actions?.some(
+          isDraftSuggestedPromptAllowedByProduct(item, platform.productCapabilities) &&
+          (!item.actions?.some(
             (action) =>
               action === DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS ||
               action === DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS_OFFPEAK,
-          ) || Boolean(onOpenAutomations),
+          ) ||
+            Boolean(onOpenAutomations)),
       ),
-    [allItems, onOpenAutomations, proactive, recommendedItems],
+    [allItems, onOpenAutomations, platform.productCapabilities, proactive, recommendedItems],
   );
   const {
     clearPluginActionPopover,
@@ -528,6 +533,8 @@ export function ConversationDraftSuggestedPromptsContainer({
 
   const handleSelect = useCallback(
     async (item: DraftSuggestedPromptItem) => {
+      // 旧推荐项/迟到点击也不能进入已关闭的套餐导航。
+      if (!isDraftSuggestedPromptAllowedByProduct(item, platform.productCapabilities)) return;
       const requestVersion = requestVersionRef.current + 1;
       requestVersionRef.current = requestVersion;
       const templateName = resolveDraftSuggestedPromptText(item.label, locale);

@@ -1,4 +1,9 @@
 import type { ApiClient } from "@zcode/shared";
+import {
+  isProductSubscriptionEnabled,
+  PRODUCT_SUBSCRIPTION_UNAVAILABLE,
+  type AccountProductCapabilities,
+} from "../productAccountBoundary.js";
 import type { ICredentialService } from "../credential/credential.js";
 import type { ICodingPlanSubscriptionService } from "./codingPlanSubscription.js";
 import { BigModelCodingPlanSubscriptionProvider } from "./bigmodelCodingPlanSubscriptionProvider.js";
@@ -6,6 +11,7 @@ import type { ModelSelectionView } from "@zcode/provider";
 import { ZaiCodingPlanSubscriptionProvider } from "./zaiCodingPlanSubscriptionProvider.js";
 
 interface CodingPlanSubscriptionServiceDependencies {
+  productCapabilities?: AccountProductCapabilities;
   apiClient: ApiClient;
   credentialService: Pick<ICredentialService, "load">;
   resolveOffPeakModelSelectionView?: () => Promise<ModelSelectionView>;
@@ -29,6 +35,50 @@ export function createCodingPlanSubscriptionService(
   dependencies: CodingPlanSubscriptionServiceDependencies,
 ): ICodingPlanSubscriptionService {
   const bigmodelProvider = new BigModelCodingPlanSubscriptionProvider(dependencies);
+  if (!isProductSubscriptionEnabled(dependencies.productCapabilities)) {
+    // subscription 文件还承载通用 workflow/config；只拒绝账号产品路径，不伪装权益有效。
+    const unavailable = async (): Promise<never> => {
+      throw new Error(PRODUCT_SUBSCRIPTION_UNAVAILABLE);
+    };
+    return {
+      batchPreview: unavailable,
+      getStaticProducts: unavailable,
+      getStaticTeamProducts: unavailable,
+      getStartPlanPreview: unavailable,
+      getOffPeakClientConfig: async () => ({
+        enabled: false,
+        modelSelectionView: { revision: 0, providers: [] },
+      }),
+      getDynamicWorkflowClientConfig: (options) =>
+        bigmodelProvider.getDynamicWorkflowClientConfig(options),
+      getModelContextBudgetStrategy: () => bigmodelProvider.getModelContextBudgetStrategy(),
+      getForceUpdateConfig: () =>
+        dependencies.productCapabilities?.appUpdates === false
+          ? Promise.resolve(null)
+          : bigmodelProvider.getForceUpdateConfig(),
+      productInfo: unavailable,
+      preview: unavailable,
+      createSign: unavailable,
+      updateSign: unavailable,
+      checkPayment: unavailable,
+      checkPendingOrders: unavailable,
+      queryStripeCards: unavailable,
+      bindStripeCard: unavailable,
+      unbindStripeCard: unavailable,
+      payStripe: unavailable,
+      checkPaypalSupport: unavailable,
+      createPaypalSetupToken: unavailable,
+      subscribePaypal: unavailable,
+      getEnterprisePricing: unavailable,
+      getEnterpriseBalance: unavailable,
+      calculateEnterpriseOrder: unavailable,
+      createEnterpriseOrder: unavailable,
+      getEnterprisePendingOrders: unavailable,
+      cancelEnterpriseOrder: unavailable,
+      continueEnterpriseOrderPayment: unavailable,
+      checkEnterpriseOrderStatus: unavailable,
+    };
+  }
   const zaiProvider = new ZaiCodingPlanSubscriptionProvider(dependencies);
 
   // 按 family 选择 enterprise 读路径 provider；缺省（含未指定 family 的历史调用）走 bigmodel。
@@ -47,7 +97,10 @@ export function createCodingPlanSubscriptionService(
     getDynamicWorkflowClientConfig: (options) =>
       bigmodelProvider.getDynamicWorkflowClientConfig(options),
     getModelContextBudgetStrategy: () => bigmodelProvider.getModelContextBudgetStrategy(),
-    getForceUpdateConfig: () => bigmodelProvider.getForceUpdateConfig(),
+    getForceUpdateConfig: () =>
+      dependencies.productCapabilities?.appUpdates === false
+        ? Promise.resolve(null)
+        : bigmodelProvider.getForceUpdateConfig(),
     productInfo: (request) => bigmodelProvider.productInfo(request),
     preview: (request) => bigmodelProvider.preview(request),
     createSign: (request) => bigmodelProvider.createSign(request),

@@ -36,6 +36,7 @@ import {
   ISettingsSyncService,
   IPromptAttachmentTransferService,
   type IServiceAccessor,
+  type AccountProductCapabilities,
 } from "@zcode/services";
 import {
   ConversationShareHttpClient,
@@ -84,6 +85,7 @@ const runtimePreferencesLogger = createServiceLogger("remote-runtime-preferences
 const ZCODE_JWT_TOKEN_KEY = "zcodejwttoken";
 
 export function createRemoteWorkspaceServiceCollection(params: {
+  productCapabilities?: AccountProductCapabilities;
   clientConfigService: IClientConfigService;
   connectionServices: IServiceAccessor;
   sourceServices?: ServiceCollection;
@@ -125,6 +127,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
     },
   });
   const localAccountProviderCredentialService = createAccountProviderCredentialService({
+    productCapabilities: params.productCapabilities,
     credentialStore: localAccountProviderCredentialStore,
     async loadOAuthAccessToken(family) {
       const providerId = family === "zai" ? ZAI_PROVIDER_ID : BIGMODEL_PROVIDER_ID;
@@ -171,8 +174,10 @@ export function createRemoteWorkspaceServiceCollection(params: {
           access,
         }),
     }),
+    params.productCapabilities,
   );
   const localCodingPlanSubscriptionService = createCodingPlanSubscriptionService({
+    productCapabilities: params.productCapabilities,
     apiClient: localApiClient,
     credentialService: localCredentialService,
   });
@@ -184,7 +189,9 @@ export function createRemoteWorkspaceServiceCollection(params: {
     apiClient: localApiClient,
     baseUrl: buildRuntimeZCodeApiUrl(process.env, "/api/v1"),
     tokenProvider: async () =>
-      (await localCredentialService.load(ZCODE_JWT_TOKEN_KEY))?.trim() || null,
+      params.productCapabilities?.productAccount === false
+        ? null
+        : (await localCredentialService.load(ZCODE_JWT_TOKEN_KEY))?.trim() || null,
   });
   const conversationShareService = new ConversationShareService({
     zcodeAgentService: params.connectionServices.zcodeAgentService,
@@ -341,6 +348,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
     .register(
       IOAuthService,
       createOAuthService(localCredentialService, {
+        productCapabilities: params.productCapabilities,
         apiClient: localApiClient,
         onProviderLogout: handleOAuthProviderLogout,
       }),
@@ -352,6 +360,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
     .register(
       IUsageStatsService,
       createUsageStatsService({
+        productCapabilities: params.productCapabilities,
         apiClient: localApiClient,
         accountRequestAuthService: localAccountRequestAuthService,
         credentialService: localCredentialService,

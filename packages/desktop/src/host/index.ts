@@ -1685,6 +1685,7 @@ async function createWindowRemoteConnectionHandle(params: {
     },
   );
   const services = createRemoteWorkspaceServiceCollection({
+    productCapabilities: DESKTOP_PRODUCT_CAPABILITIES,
     clientConfigService,
     connectionServices: backendConnection.services,
     sourceServices: activeServices ?? undefined,

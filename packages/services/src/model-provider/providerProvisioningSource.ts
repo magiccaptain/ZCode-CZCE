@@ -1,4 +1,8 @@
 import { createHash } from "node:crypto";
+import {
+  assertProductAccountEnabled,
+  type AccountProductCapabilities,
+} from "../productAccountBoundary.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
@@ -35,6 +39,7 @@ export interface ProviderProvisioningSource {
 }
 
 export interface ProviderProvisioningSourceOptions {
+  readonly productCapabilities?: AccountProductCapabilities;
   readonly personalRepository: PersonalProviderConfigRepository;
   readonly settingService: ISettingService;
   readonly credentialFilePath: string;
@@ -48,6 +53,7 @@ export function createProviderProvisioningSource(
 ): ProviderProvisioningSource {
   return {
     async read(syncId: string): Promise<ProviderProvisioningEnvelope> {
+      assertProductAccountEnabled(options.productCapabilities);
       const [personal, settings, credentials] = await Promise.all([
         readProvisionablePersonalConfig(options.personalRepository, options.personalConfigFilePath),
         options.settingService.get(),

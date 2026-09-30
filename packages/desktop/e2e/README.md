@@ -69,3 +69,13 @@ APPIMAGE_EXTRACT_AND_RUN=1 pnpm --filter @zcode/desktop e2e:updates --executable
 - `e2e/run-telemetry.mjs --executable /absolute/path/to/ZCode.AppImage --key-file /absolute/path/outside/repository/deepseek-api-key`：实跑当前包（Linux 使用 `APPIMAGE_EXTRACT_AND_RUN=1`），干净/旧队列两场景、原生本地 crashReporter 不上传、SDK 未加载与真实 Chromium netlog 无产品遥测 URL；可选 key 使用包内 Agent 完成一次真实对话及 SQLite 持久化。打包场景不注入 Main spy，旧请求通过正常 preload 测试；原始 netlog 仅在私有目录保留。
 
 E2E 报告与脱敏日志写入忽略的 `.e2e-artifacts/telemetry-*/`，核心基线仍写 UUID 目录。模拟错误通知不代表真实 native crash；组件测试另覆盖 Agent factory、最终 env 清洗和正常/模拟异常退出，专项本身不等于完整 Agent/Tool/MCP 网络证明。未运行 Windows/macOS、系统级安装或包内完整 Skills/MCP 基线，不宣称其他产品网络请求已经关闭。最终范围与本机证据见 `specs/desktop-local-fork/issue2-telemetry.md` 和 `issue2-results.md`。
+
+## Issue #3 账号/订阅执行边界与本地模型设置
+
+- `pnpm exec tsx --test packages/ui/test/productAccount*.test.*`：Root OAuth/刷新/observer 注册 guard、旧登录请求、旧权益缓存/请求、购买 dialog inventory guard，以及外部 Provider 错误和历史模型的本地设置提示。
+- `pnpm exec tsx --test packages/desktop/test/productAccountMain.test.mjs`：实际 Main IPC 与深链模块，覆盖旧 OAuth state、支付 callback、renderer-ready、产品外链拒绝及通用 MCP/Provider 页面保留。
+- `pnpm --filter @zcode/desktop exec tsx e2e/run-account.mjs`：无需模型凭据，重新构建本地 Agent 与 Desktop，真实启动与正常退出两次；Main 旧 OAuth/支付/浏览器请求绕过、旧 guest popup/navigation 与真实 DOM 产品 webview attach 均拒绝；操作偏好菜单，断言没有产品登录/退出/套餐/升级/产品用量项；UI 添加 DeepSeek 模板，保存本机 fixture endpoint 与非凭据 key；打开本地 workspace，在真实模型菜单切换模型；重启使用过期 token/损坏 profile fixture，确认凭据字节保持、草稿模型选择和模型设置恢复。Main browser spy 只观察执行边界，不启动真实外部浏览器。
+- 前缀 `ZCODE_ACCOUNT_E2E_ENV=production` 执行正式身份构建，否则 test；产品能力仍是同源固定值。两种构建均在 Linux 实跑，报告记录构建身份。
+- 核心回归仍使用 `e2e:baseline --key-file <仓库外私有文件> --extensions --telemetry`；真实执行本地模型、工具、权限、追加、停止、恢复、用户级/工作区级 Skills 和 stdio/带测试鉴权 HTTP MCP。
+
+结果位于忽略的 `.e2e-artifacts/account-*/`（报告、设置截图、脱敏日志）。账号专项不发送外部模型请求，不替代有凭据的核心回归、真实 MCP OAuth 浏览器闭环或安装包验证；当前运行平台 Linux x64。冷启动仍遵守原本的新任务/工作区语义，不让测试假定自动激活先前本地 workspace。最终证据见 `specs/desktop-local-fork/issue3-results.md`。

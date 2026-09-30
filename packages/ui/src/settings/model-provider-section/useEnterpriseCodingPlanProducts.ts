@@ -5,6 +5,7 @@ import {
   type EnterpriseCodingPlanPricingResponse,
   type ProviderFamilyDomain,
 } from "@zcode/shared";
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
 import { isRemoteWorkspaceDisconnectedError } from "@/lib/remoteWorkspaceServiceError.js";
 import { logger } from "@/logger.js";
@@ -96,6 +97,11 @@ export function useEnterpriseCodingPlanProducts({
   authenticated: boolean;
   family?: ProviderFamilyDomain;
 }) {
+  const capabilities = useOptionalPlatform()?.productCapabilities;
+  enabled =
+    enabled &&
+    capabilities?.productAccount !== false &&
+    capabilities?.productSubscription !== false;
   const services = useOptionalServices();
   const service = services?.codingPlanSubscriptionService;
   const codingPlanProviderId = getModelProviderFamilySpec(family).individualCodingPlanProviderId;

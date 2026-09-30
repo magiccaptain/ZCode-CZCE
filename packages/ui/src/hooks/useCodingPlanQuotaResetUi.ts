@@ -1,3 +1,4 @@
+import { useOptionalPlatform } from "./usePlatform.js";
 /* eslint-disable max-lines -- 额度重置 hook 集中处理 scope 共享请求、轮询、幂等核销与服务端历史对账。 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { IUsageStatsService } from "@zcode/services";
@@ -384,7 +385,11 @@ export function useCodingPlanQuotaResetUi({
       accountAccess: stableAccountAccess,
     };
   }, [preferredProviderId, stableAccountAccess]);
-  const enabled = Boolean(requestedEnabled && sourceKey?.trim() && usageStatsService && scope);
+  const capabilities = useOptionalPlatform()?.productCapabilities;
+  const enabled =
+    capabilities?.productAccount !== false &&
+    capabilities?.productSubscription !== false &&
+    Boolean(requestedEnabled && sourceKey?.trim() && usageStatsService && scope);
   const entriesBySource = useZCodeStoreWithDefault(
     (state) => state.codingPlanQuotaResetUiBySource,
     EMPTY_ENTRIES,

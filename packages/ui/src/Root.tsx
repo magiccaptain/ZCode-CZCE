@@ -189,6 +189,7 @@ function RootInner({
 
   const { intl, locale } = useZCodeIntl();
   const theme = useZCodeStore((state) => state.theme);
+  const accountEnabled = platform.productCapabilities?.productAccount !== false;
   const user = useZCodeStore((state) => state.user);
   const isRestoringOAuthSession = useZCodeStore((state) => state.isRestoringOAuthSession);
   const setUser = useZCodeStore((state) => state.setUser);
@@ -209,6 +210,8 @@ function RootInner({
   const [providerFamilyDomainMigrationComplete, setProviderFamilyDomainMigrationComplete] =
     useState(false);
   const loginEntryRequest = useZCodeStore((state) => state.loginEntryRequest);
+  const markLoginEntryAttemptStatus = useZCodeStore((state) => state.markLoginEntryAttemptStatus);
+  const clearLoginEntryRequest = useZCodeStore((state) => state.clearLoginEntryRequest);
   const rootModelSelectionRead = useModelSelectionServiceView(services.modelSelectionService);
   const rootModelSelectionView =
     rootModelSelectionRead.state.status === "ready" ? rootModelSelectionRead.state.view : null;
@@ -392,7 +395,7 @@ function RootInner({
 
     void (async () => {
       try {
-        await ensureProviderFamilyDomainMigration(services);
+        if (accountEnabled) await ensureProviderFamilyDomainMigration(services);
       } catch (error) {
         logger.warn("[Root] provider family domain 迁移失败，继续启动", {
           error,
@@ -415,7 +418,7 @@ function RootInner({
     return () => {
       disposed = true;
     };
-  }, [refreshAppSettings, refreshProviderState, services]);
+  }, [accountEnabled, refreshAppSettings, refreshProviderState, services]);
 
   const shouldPreferDirectoryBrowser = Boolean(preferDirectoryBrowser);
   const supportsEmbeddedBrowser = explicitSupportsEmbeddedBrowser ?? Boolean(isDesktop);
@@ -429,7 +432,7 @@ function RootInner({
       rootProviderAvailability.hydrated || rootModelSelectionRead.state.status === "error",
   });
   const providerAvailabilityLoginEntryGuardEnabled =
-    shouldEnableProviderAvailabilityLoginEntryGuard();
+    accountEnabled && shouldEnableProviderAvailabilityLoginEntryGuard();
   const { startupCheckCompleted: providerAvailabilityStartupCheckCompleted } =
     useProviderAvailabilityLoginEntryGuard({
       enabled: providerAvailabilityLoginEntryGuardEnabled,
@@ -864,13 +867,19 @@ function RootInner({
     if (!loginEntryRequest) {
       return;
     }
+    if (!accountEnabled) {
+      // 关闭的旧登录意图应明确失败并消费，不能在引导页自动 OAuth。
+      markLoginEntryAttemptStatus(loginEntryRequest.id, "failed");
+      clearLoginEntryRequest(loginEntryRequest.id);
+      return;
+    }
     // 登录入口已从模态弹窗收敛为 WelcomeScreen。
     // provider 连接请求仍要先退出首次启动引导语义，避免连接完成后误创建默认 workspace。
     setWelcomeScreenOpenReason("provider-request");
-  }, [loginEntryRequest]);
+  }, [accountEnabled, loginEntryRequest, markLoginEntryAttemptStatus, clearLoginEntryRequest]);
 
   const handleOpenLoginEntry = () => {
-    setWelcomeScreenOpenReason("manual-login");
+    if (accountEnabled) setWelcomeScreenOpenReason("manual-login");
   };
   const handleWelcomeScreenComplete = useCallback(
     async (reason: LoginCompleteReason) => {
@@ -961,8 +970,8 @@ function RootInner({
     onCreateTask: handleCreateTask,
     onOpenWorkspace: handleOpenWorkspace,
     allowOpenWorkspace,
-    onLogin: !user ? handleOpenLoginEntry : undefined,
-    onLogout: user ? handleLogout : undefined,
+    onLogin: accountEnabled && !user ? handleOpenLoginEntry : undefined,
+    onLogout: accountEnabled && user ? handleLogout : undefined,
     user,
   };
 
@@ -1058,8 +1067,8 @@ function RootInner({
             remoteWorkspaceSessions={remoteWorkspaceSessions}
             allowRemoteWorkspace={allowRemoteWorkspace}
             handleBackFromSettings={handleBackFromSettings}
-            handleLogout={user ? handleLogout : undefined}
-            onLogin={!user ? handleOpenLoginEntry : undefined}
+            handleLogout={accountEnabled && user ? handleLogout : undefined}
+            onLogin={accountEnabled && !user ? handleOpenLoginEntry : undefined}
             user={user}
             reconnectingRemoteWorkspaceKeys={reconnectingRemoteWorkspaceKeys}
             remoteWorkspaceErrorByWorkspaceKey={remoteWorkspaceErrorByWorkspaceKey}

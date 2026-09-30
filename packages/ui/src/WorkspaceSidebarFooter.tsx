@@ -125,25 +125,30 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
 }) {
   const { intl } = useZCodeIntl();
   const platform = usePlatform();
+  const accountEnabled = platform.productCapabilities?.productAccount !== false;
+  const subscriptionEnabled =
+    accountEnabled && platform.productCapabilities?.productSubscription !== false;
   const interfaceMode = useZCodeStore((state) => state.interfaceMode);
   const setInterfaceMode = useZCodeStore((state) => state.setInterfaceMode);
   const zoomInShortcutLabel = useShortcutCommandLabel("zoomIn");
   const zoomOutShortcutLabel = useShortcutCommandLabel("zoomOut");
   const resetZoomShortcutLabel = useShortcutCommandLabel("resetZoom");
   const isRestoringOAuthSession = useZCodeStore((state) => state.isRestoringOAuthSession);
-  const profileBadge = getSidebarProfileBadge(user, intl.formatMessage);
+  const profileBadge = accountEnabled ? getSidebarProfileBadge(user, intl.formatMessage) : "ZCode";
   const avatarFallbackText = getAvatarFallbackText(user);
   const avatarKey = user?.avatarUrl ?? user?.id ?? "guest";
-  const showAuthRestoreLoading = !user && isRestoringOAuthSession;
+  const showAuthRestoreLoading = accountEnabled && !user && isRestoringOAuthSession;
   const usageSummaryState = useWorkspaceSidebarFooterUsageSummaryState({
-    enabled: true,
+    enabled: subscriptionEnabled,
     workspaceIdentity,
     workspacePath,
   });
   const profileContent = (
     <>
       <Avatar key={avatarKey} size="default">
-        {user?.avatarUrl ? <AvatarImage src={user.avatarUrl} alt={profileBadge} /> : null}
+        {accountEnabled && user?.avatarUrl ? (
+          <AvatarImage src={user.avatarUrl} alt={profileBadge} />
+        ) : null}
         <AvatarFallback className="bg-background text-foreground">
           {user ? (
             avatarFallbackText
@@ -165,7 +170,9 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
           <span className="min-w-0 truncate text-ui-base font-semibold text-foreground">
             {profileBadge}
           </span>
-          {user ? <WorkspaceSidebarFooterPlanBadge state={usageSummaryState} /> : null}
+          {subscriptionEnabled && user ? (
+            <WorkspaceSidebarFooterPlanBadge state={usageSummaryState} />
+          ) : null}
         </div>
       </div>
     </>
@@ -344,12 +351,14 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
               </DropdownMenuSub>
             ) : null}
             {/* 升级入口状态不再以菜单开关为生命周期边界。*/}
-            <WorkspaceSidebarFooterUsageSummaryContent
-              state={usageSummaryState}
-              onUsageClick={usageButtonClick}
-              onUpgradeClick={onUpgradeClick}
-            />
-            {onLogin && !user ? (
+            {subscriptionEnabled ? (
+              <WorkspaceSidebarFooterUsageSummaryContent
+                state={usageSummaryState}
+                onUsageClick={usageButtonClick}
+                onUpgradeClick={onUpgradeClick}
+              />
+            ) : null}
+            {accountEnabled && onLogin && !user ? (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={onLogin} data-testid={TID_LOGIN_MENU_ITEM}>
@@ -358,7 +367,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
                 </DropdownMenuItem>
               </>
             ) : null}
-            {onLogout ? (
+            {accountEnabled && onLogout ? (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={onLogout} data-testid={TID_LOGOUT_BUTTON}>

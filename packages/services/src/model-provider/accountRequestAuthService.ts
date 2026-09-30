@@ -5,6 +5,10 @@ import type {
   AccountRequestAuthResolver,
 } from "./accountProviderRequestAuthService.js";
 import type { ZCodeAccountAccess, ZCodeProviderAccountAccess } from "@zcode/shared";
+import {
+  assertProductAccountEnabled,
+  type AccountProductCapabilities,
+} from "../productAccountBoundary.js";
 
 /**
  * 请求期 Account 鉴权边界。
@@ -20,15 +24,19 @@ export interface IAccountRequestAuthService {
 
 export function createAccountRequestAuthService(
   resolver: AccountRequestAuthResolver,
+  productCapabilities?: AccountProductCapabilities,
 ): IAccountRequestAuthService {
   return {
     resolveAccessCurrent(access) {
+      if (productCapabilities?.productAccount === false) return Promise.resolve(null);
       return resolver.resolveAccessCurrent(access);
     },
-    resolveCurrent(input) {
+    async resolveCurrent(input) {
+      assertProductAccountEnabled(productCapabilities);
       return resolver.resolveCurrent(input);
     },
-    assertCurrent(input) {
+    async assertCurrent(input) {
+      assertProductAccountEnabled(productCapabilities);
       return resolver.assertCurrent(input);
     },
   };

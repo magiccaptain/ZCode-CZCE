@@ -1,6 +1,10 @@
 /* eslint-disable max-lines -- OAuthService 集中维护 OAuth 会话生命周期和 provider 切换边界，当前 review 修复只收窄后台迁移写入条件。 */
 import { randomBytes } from "node:crypto";
 import {
+  assertProductAccountEnabled,
+  type AccountProductCapabilities,
+} from "../productAccountBoundary.js";
+import {
   ApiError,
   formatLogPrefix,
   type ApiClient,
@@ -65,6 +69,7 @@ interface OAuthFlowEnvelope {
 }
 
 interface OAuthServiceDependencies {
+  productCapabilities?: AccountProductCapabilities;
   adapters?: OAuthProviderAdapter[];
   apiClient?: ApiClient;
   now?: () => number;
@@ -115,6 +120,7 @@ function resolveInactiveOAuthProvider(provider: OAuthProviderId): OAuthProviderI
  * 在 host process 中运行，管理 OAuth 流程的完整生命周期。
  */
 export class OAuthService implements IOAuthService {
+  private readonly productCapabilities?: AccountProductCapabilities;
   private readonly credentialService: ICredentialService;
   private readonly repo: OAuthCredentialRepo;
   private readonly adapters = new Map<OAuthProviderId, OAuthProviderAdapter>();
@@ -138,6 +144,7 @@ export class OAuthService implements IOAuthService {
   } | null = null;
 
   constructor(credentialService: ICredentialService, dependencies: OAuthServiceDependencies = {}) {
+    this.productCapabilities = dependencies.productCapabilities;
     this.credentialService = credentialService;
     this.now = dependencies.now ?? Date.now;
     this.onProviderLogout = dependencies.onProviderLogout;
@@ -145,10 +152,12 @@ export class OAuthService implements IOAuthService {
     this.env = dependencies.env ?? process.env;
 
     const adapters =
-      dependencies.adapters ??
-      createOAuthProviderAdapters(createOAuthRuntimeConfig(dependencies.env), {
-        apiClient: dependencies.apiClient,
-      });
+      dependencies.productCapabilities?.productAccount === false
+        ? []
+        : (dependencies.adapters ??
+          createOAuthProviderAdapters(createOAuthRuntimeConfig(dependencies.env), {
+            apiClient: dependencies.apiClient,
+          }));
 
     for (const adapter of adapters) {
       this.adapters.set(adapter.providerId, adapter);
@@ -171,6 +180,7 @@ export class OAuthService implements IOAuthService {
   }
 
   async getActiveProvider(): Promise<OAuthProviderId | null> {
+    if (this.productCapabilities?.productAccount === false) return null;
     return this.repo.getActiveProvider();
   }
 
@@ -180,6 +190,7 @@ export class OAuthService implements IOAuthService {
   }
 
   async restoreCachedSessionState(): Promise<OAuthCachedSessionRestoreResult> {
+    if (this.productCapabilities?.productAccount === false) return { status: "signed-out" };
     const restoreGeneration = this.oauthSessionGeneration;
     const activeProvider = await this.repo.getActiveProvider();
     if (!activeProvider) {
@@ -514,6 +525,7 @@ export class OAuthService implements IOAuthService {
   }
 
   async restoreSession(): Promise<UserInfo | null> {
+    if (this.productCapabilities?.productAccount === false) return null;
     const activeProvider = await this.repo.getActiveProvider();
     if (!activeProvider) {
       log("restoreSession skipped: no active provider");
@@ -588,10 +600,12 @@ export class OAuthService implements IOAuthService {
   }
 
   async startOAuth(provider: OAuthProviderId): Promise<OAuthStartResponse> {
+    assertProductAccountEnabled(this.productCapabilities);
     return this.startOAuthInternal(provider);
   }
 
   async startOAuthWithPolling(provider: OAuthProviderId): Promise<OAuthStartResponse> {
+    assertProductAccountEnabled(this.productCapabilities);
     if (provider !== ZAI_PROVIDER_ID && provider !== BIGMODEL_PROVIDER_ID) {
       return this.startOAuthInternal(provider);
     }
@@ -699,6 +713,7 @@ export class OAuthService implements IOAuthService {
   }
 
   async pollPendingOAuth(): Promise<OAuthCallbackResult | null> {
+    assertProductAccountEnabled(this.productCapabilities);
     const apiClient = this.apiClient;
     if (!apiClient) {
       return null;
@@ -864,6 +879,7 @@ export class OAuthService implements IOAuthService {
   }
 
   async handleCallback(url: string): Promise<OAuthCallbackResult | null> {
+    assertProductAccountEnabled(this.productCapabilities);
     const pending = this.pendingState;
     if (!pending) {
       const callbackState = new URL(url).searchParams.get("state")?.trim();
@@ -962,6 +978,7 @@ export class OAuthService implements IOAuthService {
   }
 
   async refreshToken(provider?: OAuthProviderId): Promise<void> {
+    assertProductAccountEnabled(this.productCapabilities);
     const generation = this.oauthSessionGeneration;
     const targetProvider = await this.resolveProvider(provider);
     if (!targetProvider) {
@@ -1009,6 +1026,7 @@ export class OAuthService implements IOAuthService {
 
   /** Host 本地 401 提交入口，不扩展 IOAuthService 的跨端契约。 */
   logoutIfCurrentCredentialRequest(input: string | URL, headers: Headers): Promise<boolean> {
+    if (this.productCapabilities?.productAccount === false) return Promise.resolve(false);
     return this.logoutActiveSession(() =>
       isCurrentOAuthCredentialRequest({
         input,
@@ -1047,6 +1065,7 @@ export class OAuthService implements IOAuthService {
   }
 
   async logout(provider?: OAuthProviderId): Promise<void> {
+    assertProductAccountEnabled(this.productCapabilities);
     if (!provider) {
       await this.logoutActiveSession();
       return;
@@ -1071,6 +1090,7 @@ export class OAuthService implements IOAuthService {
   }
 
   async logoutAll(): Promise<void> {
+    assertProductAccountEnabled(this.productCapabilities);
     const providers = [...this.adapters.keys()];
     const accountIdentities = await this.runSessionMutation(async () => {
       const identities = new Map<OAuthProviderId, string | null>();
@@ -1086,6 +1106,7 @@ export class OAuthService implements IOAuthService {
   }
 
   async cancelPending(provider?: OAuthProviderId): Promise<void> {
+    if (this.productCapabilities?.productAccount === false) return;
     if (!this.pendingState) {
       if (provider && this.oauthFlowStartProvider && this.oauthFlowStartProvider !== provider)
         return;
@@ -1186,8 +1207,12 @@ export function createOAuthService(
 ): OAuthService {
   return new OAuthService(credentialService, {
     ...dependencies,
-    adapters: createOAuthProviderAdapters(createOAuthRuntimeConfig(dependencies.env), {
-      apiClient: dependencies.apiClient,
-    }),
+    // 工厂也必须先门控，避免关闭时仍构造产品 OAuth adapters。
+    adapters:
+      dependencies.productCapabilities?.productAccount === false
+        ? []
+        : createOAuthProviderAdapters(createOAuthRuntimeConfig(dependencies.env), {
+            apiClient: dependencies.apiClient,
+          }),
   });
 }

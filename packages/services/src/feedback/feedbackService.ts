@@ -12,6 +12,7 @@ import { Emitter } from "@zcode/rpc";
 import { arch, platform, release, type as osType } from "node:os";
 
 import type { ICredentialService } from "../credential/credential.js";
+import type { AccountProductCapabilities } from "../productAccountBoundary.js";
 import type { IOAuthService } from "../oauth/oauth.js";
 import type { FeedbackUploadProgress, IFeedbackService } from "./feedback.js";
 import { FeedbackHttpClient, FeedbackUploadCanceledError } from "./feedbackHttpClient.js";
@@ -22,6 +23,7 @@ import { FeedbackLocalTicketStore } from "#src/feedback/feedbackLocalTicketStore
 const ZCODE_JWT_TOKEN_KEY = "zcodejwttoken";
 
 export interface CreateFeedbackServiceOptions {
+  productCapabilities?: AccountProductCapabilities;
   credentialService: ICredentialService;
   oauthService: IOAuthService;
   apiClient: ApiClient;
@@ -74,6 +76,8 @@ export function createFeedbackService(options: CreateFeedbackServiceOptions): IF
   }
 
   async function getZcodeJwtToken(): Promise<string | undefined> {
+    // 产品账号关闭后沿用匿名反馈路径，不能凭旧 JWT 恢复账号身份。
+    if (options.productCapabilities?.productAccount === false) return undefined;
     return (await options.credentialService.load(ZCODE_JWT_TOKEN_KEY))?.trim() || undefined;
   }
 

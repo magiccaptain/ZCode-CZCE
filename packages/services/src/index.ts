@@ -1,3 +1,9 @@
+export {
+  PRODUCT_ACCOUNT_UNAVAILABLE,
+  PRODUCT_SUBSCRIPTION_UNAVAILABLE,
+  type AccountProductCapabilities,
+} from "./productAccountBoundary.js";
+
 // Descriptors & collection (browser-safe)
 export { type ServiceDescriptor, createServiceDescriptor } from "./descriptors.js";
 export { ServiceCollection } from "./collection.js";

@@ -2719,6 +2719,8 @@ const enUS: Record<string, string> = {
   "settings.plugins.toggle.workspaceDisabled":
     "Disabled {plugin} in this workspace (overriding User default)",
   "settings.plugins.toggle.failed": "Couldn't update {plugin}. Try again.",
+  "settings.modelProvider.localConfigurationHint":
+    "Product account models are unavailable. Add a local provider and configure its endpoint, API key and models.",
   "settings.modelProviderDescription":
     "Manage custom model providers. Once configured, they can be selected during chat.",
   "settings.modelProvider.add": "Add provider",

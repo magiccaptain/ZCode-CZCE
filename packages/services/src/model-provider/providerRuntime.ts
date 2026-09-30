@@ -54,8 +54,9 @@ export class EmptyAccountProviderConfigSource implements ProviderSource<AccountP
     return createFailClosedAccountProviderConfigSnapshot(await this.configSource.read());
   }
 
-  onDidChange(): () => void {
-    return () => {};
+  onDidChange(listener: (reason: string) => void): () => void {
+    // 禁用账号仍需透传配置变化；否则已有 Agent 的 overlay revision 滞后，Worker 会保留整份旧 Registry。
+    return this.configSource.onDidChange(listener);
   }
 }
 

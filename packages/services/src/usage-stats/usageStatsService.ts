@@ -16,6 +16,10 @@ import type {
   UsageStatsSnapshot,
 } from "@zcode/shared";
 import { isCodingPlanModelProviderId } from "@zcode/shared";
+import {
+  assertProductSubscriptionEnabled,
+  type AccountProductCapabilities,
+} from "../productAccountBoundary.js";
 import type { ICredentialService } from "../credential/credential.js";
 import type { IAccountRequestAuthService } from "../model-provider/accountRequestAuthService.js";
 import type { IZCodeAgentService } from "../zcode-agent/zcodeAgent.js";
@@ -28,6 +32,7 @@ import {
 import type { OfficialMcpCredentialSource } from "./providers/zcodeMcpQuotaProvider.js";
 
 interface UsageStatsServiceDependencies {
+  productCapabilities?: AccountProductCapabilities;
   apiClient: ApiClient;
   accountRequestAuthService: Pick<
     IAccountRequestAuthService,
@@ -77,6 +82,7 @@ export function createUsageStatsService(
     async getCodingPlanUsageSnapshot(
       request: CodingPlanUsageRequest,
     ): Promise<CodingPlanUsageSnapshot> {
+      assertProductSubscriptionEnabled(dependencies.productCapabilities);
       if (!isCodingPlanProviderId(request.preferredProviderId)) {
         // Coding Plan 页面只允许预置的 Z.AI/BigModel Coding Plan 账号。
         // 普通 provider id 不能进入 monitor 链路，避免误读 API Key 或环境变量。
@@ -87,6 +93,7 @@ export function createUsageStatsService(
     async getCodingPlanResetStatus(
       request: CodingPlanResetScopeRequest,
     ): Promise<CodingPlanResetStatusSnapshot> {
+      assertProductSubscriptionEnabled(dependencies.productCapabilities);
       if (!isCodingPlanProviderId(request.preferredProviderId)) {
         throw new Error("no_bigmodel_api_key");
       }
@@ -95,6 +102,7 @@ export function createUsageStatsService(
     async requestCodingPlanResetOpportunity(
       request: CodingPlanResetOpportunityRequest,
     ): Promise<CodingPlanResetOpportunityResult> {
+      assertProductSubscriptionEnabled(dependencies.productCapabilities);
       if (!isCodingPlanProviderId(request.preferredProviderId)) {
         throw new Error("no_bigmodel_api_key");
       }
@@ -103,18 +111,21 @@ export function createUsageStatsService(
     async useCodingPlanReset(
       request: CodingPlanResetUseRequest,
     ): Promise<CodingPlanResetUseResult> {
+      assertProductSubscriptionEnabled(dependencies.productCapabilities);
       if (!isCodingPlanProviderId(request.preferredProviderId)) {
         throw new Error("no_bigmodel_api_key");
       }
       return quotaProvider.useCodingPlanReset(request);
     },
     async markCodingPlanResetHistoryRead(request: CodingPlanResetScopeRequest): Promise<void> {
+      assertProductSubscriptionEnabled(dependencies.productCapabilities);
       if (!isCodingPlanProviderId(request.preferredProviderId)) {
         throw new Error("no_bigmodel_api_key");
       }
       await quotaProvider.markCodingPlanResetHistoryRead(request);
     },
     async getSnapshot(request: UsageStatsRequest): Promise<UsageStatsSnapshot> {
+      assertProductSubscriptionEnabled(dependencies.productCapabilities);
       // App Usage 已迁移到 getAppUsageSnapshot（agent 数据库）。getSnapshot 仅服务 Coding Plan monitor 链路。
       // 任何 monitor 失败都不能回退本地数据，保持数据源隔离。
       return quotaProvider.getUsageStatsSnapshot(request);
@@ -122,6 +133,7 @@ export function createUsageStatsService(
     async getEntitlementSnapshot(
       request: UsageEntitlementRequest = {},
     ): Promise<UsageEntitlementSnapshot> {
+      assertProductSubscriptionEnabled(dependencies.productCapabilities);
       return quotaProvider.getSnapshotForRequest(request);
     },
   };

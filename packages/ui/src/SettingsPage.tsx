@@ -307,6 +307,9 @@ export function SettingsPage({
   const isLinuxDesktop = Boolean(isDesktop && !isMacDesktop && !isWindowsDesktop);
   const usesInlineWindowControls = Boolean(isWindowsDesktop || isLinuxDesktop);
   const platform = usePlatform();
+  const subscriptionEnabled =
+    platform.productCapabilities?.productAccount !== false &&
+    platform.productCapabilities?.productSubscription !== false;
   const [activeSection, setActiveSection] = useState<SettingsSectionId>(() => {
     const initialSection = consumeInitialSettingsSection("general");
     const visibleInitialSection = resolveSettingsSectionForPlatform(
@@ -349,7 +352,7 @@ export function SettingsPage({
   const setNotificationSoundEnabled = useZCodeStore((state) => state.setNotificationSoundEnabled);
   const usageProviderSettingsRead = useProviderSettingsView();
   const usageProviderSettingsView =
-    usageProviderSettingsRead.state.status === "ready"
+    subscriptionEnabled && usageProviderSettingsRead.state.status === "ready"
       ? usageProviderSettingsRead.state.view
       : null;
   const usageProviderSettingsLoading = usageProviderSettingsRead.state.status !== "ready";
@@ -449,6 +452,7 @@ export function SettingsPage({
   );
   const [usageActiveTab, setUsageActiveTab] = useState<UsageStatsSectionTab>(() => {
     const pendingTab = consumePendingSettingsUsageTab();
+    if (!subscriptionEnabled) return "app";
     return pendingTab === "codingPlan" ? "codingPlan" : (pendingTab ?? "app");
   });
   const usagePersonalCodingPlanSources = useMemo(() => {
@@ -554,9 +558,12 @@ export function SettingsPage({
   const [pendingModelProviderTarget, setPendingModelProviderTarget] = useState<
     SettingsModelProviderTarget | undefined
   >(() => initialModelProviderTarget);
-  const handleUsageTabSelect = useCallback((tab: UsageStatsSectionTab) => {
-    setUsageActiveTab(tab);
-  }, []);
+  const handleUsageTabSelect = useCallback(
+    (tab: UsageStatsSectionTab) => {
+      setUsageActiveTab(subscriptionEnabled ? tab : "app");
+    },
+    [subscriptionEnabled],
+  );
   /*
    * 使用统计是账号级 sources，不再绑定当前 workspace 连接方式。
    * 旧入口只会写入 "codingPlan" 意图；等 sources 加载后需要落到真实来源。
@@ -749,7 +756,7 @@ export function SettingsPage({
         // 设置入口是一级路由边界。即使仍落在同一 section，也必须销毁旧的 New/Edit/Detail 子状态。
         setSettingsSectionNavigationVersion((version) => version + 1);
         if (section === "usage" && detail?.usageTab) {
-          setUsageActiveTab(detail.usageTab);
+          setUsageActiveTab(subscriptionEnabled ? detail.usageTab : "app");
         }
         if (resolveSettingsSection(section) === "plugin" && detail?.pluginTab) {
           setPluginTab(detail.pluginTab);
@@ -764,7 +771,7 @@ export function SettingsPage({
           });
         }
       }),
-    [activeSection, setActiveSettingsSection],
+    [activeSection, setActiveSettingsSection, subscriptionEnabled],
   );
 
   useEffect(() => {

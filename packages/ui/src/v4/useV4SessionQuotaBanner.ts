@@ -1,3 +1,4 @@
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { useProviderSettingsView } from "@/hooks/useProviderSettingsView.js";
 import { buildStartPlanEntitlementOptions } from "@/lib/startPlanEntitlementOptions.js";
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
@@ -57,6 +58,9 @@ export function useV4SessionQuotaBanner(params: {
    */
   mcpUnavailableNotice?: McpUnavailableNotice | null;
 }) {
+  const capabilities = useOptionalPlatform()?.productCapabilities;
+  const subscriptionEnabled =
+    capabilities?.productAccount !== false && capabilities?.productSubscription !== false;
   const activeProviderId = params.providerId?.trim() || null;
   const modelId = params.modelId?.trim() || null;
   const isStartPlanProvider = Boolean(
@@ -76,7 +80,9 @@ export function useV4SessionQuotaBanner(params: {
   const serverProviderLimited = Boolean(
     providerLimitedCode && isGlmQuotaBannerProviderId(activeProviderId),
   );
-  const takesOverError = serverQuotaExhausted || serverConcurrentLimited || serverProviderLimited;
+  const takesOverError =
+    subscriptionEnabled &&
+    (serverQuotaExhausted || serverConcurrentLimited || serverProviderLimited);
 
   const settings = useProviderSettingsView();
   const entitlement = useUsageEntitlementWithService(params.usageStatsService, {
@@ -98,7 +104,7 @@ export function useV4SessionQuotaBanner(params: {
   const state = useMemo(
     () =>
       buildSessionQuotaBannerState({
-        activeProviderId,
+        activeProviderId: subscriptionEnabled ? activeProviderId : null,
         snapshot: entitlement.snapshot,
         modelId,
         isReminderHidden: (key, referenceTime) =>
@@ -117,11 +123,12 @@ export function useV4SessionQuotaBanner(params: {
         ...(serverProviderLimited
           ? { serverProviderLimitedMessage: params.error?.message ?? null }
           : {}),
-        ...(params.mcpUnavailableNotice
+        ...(subscriptionEnabled && params.mcpUnavailableNotice
           ? { mcpUnavailableNotice: params.mcpUnavailableNotice }
           : {}),
       }),
     [
+      subscriptionEnabled,
       activeProviderId,
       reminderOwner,
       reminderVersion,
@@ -272,7 +279,9 @@ export function useV4SessionQuotaBanner(params: {
     markShown,
     takesOverError,
     upgradeProviderId:
-      terminalPlan || !shouldOfferQuotaBannerUpgrade(state.kind) ? null : upgradeProviderId,
+      !subscriptionEnabled || terminalPlan || !shouldOfferQuotaBannerUpgrade(state.kind)
+        ? null
+        : upgradeProviderId,
     upgradeActionLabelId: maxPlan ? "chat.quota.action.renew" : "chat.quota.action.upgrade",
   } as const;
 }

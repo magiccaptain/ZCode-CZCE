@@ -1,5 +1,7 @@
 /* eslint-disable max-lines -- 桌面窗口 chrome、webview 安全策略和 popup 路由共享同一 BrowserWindow 生命周期上下文。 */
 import { app, BrowserWindow, Menu, nativeImage, nativeTheme, screen, shell } from "electron";
+import { DESKTOP_PRODUCT_CAPABILITIES } from "./productCapabilities.js";
+import { PRODUCT_SUBSCRIPTION_UNAVAILABLE } from "@zcode/services";
 import { join } from "node:path";
 import type {
   ContextMenuParams,
@@ -385,6 +387,20 @@ function attachEmbeddedBrowserWindowOpenHandler(options: {
       typeof options.guestWebContents.getURL === "function"
         ? options.guestWebContents.getURL()
         : "";
+    // 即使旧 guest 已存在，也不能从 popup 恢复购买；普通浏览器页面不按域名封禁。
+    if (
+      (!DESKTOP_PRODUCT_CAPABILITIES.productSubscription ||
+        !DESKTOP_PRODUCT_CAPABILITIES.productAccount) &&
+      // 支付回调的 embedded 标记在同源 returnTo 中；来源和目标都按既有 callback 规则拒绝。
+      (options.isCodingPlanGuest ||
+        isCodingPlanWebviewUrl(guestUrl) ||
+        isCodingPlanPaymentCallbackUrl(guestUrl) ||
+        isCodingPlanWebviewUrl(url) ||
+        isCodingPlanPaymentCallbackUrl(url))
+    ) {
+      options.logger.warn(PRODUCT_SUBSCRIPTION_UNAVAILABLE);
+      return { action: "deny" };
+    }
     const shouldRouteCodingPlanPopup =
       options.isCodingPlanGuest ||
       isCodingPlanWebviewUrl(guestUrl) ||
@@ -451,6 +467,20 @@ function attachEmbeddedBrowserWindowOpenHandler(options: {
       typeof options.guestWebContents.getURL === "function"
         ? options.guestWebContents.getURL()
         : "";
+    if (
+      (!DESKTOP_PRODUCT_CAPABILITIES.productSubscription ||
+        !DESKTOP_PRODUCT_CAPABILITIES.productAccount) &&
+      // callback 来源/目标不能因顶层缺少 embedded 标记而恢复购买导航。
+      (options.isCodingPlanGuest ||
+        isCodingPlanWebviewUrl(guestUrl) ||
+        isCodingPlanPaymentCallbackUrl(guestUrl) ||
+        isCodingPlanWebviewUrl(url) ||
+        isCodingPlanPaymentCallbackUrl(url))
+    ) {
+      options.logger.warn(PRODUCT_SUBSCRIPTION_UNAVAILABLE);
+      event.preventDefault();
+      return;
+    }
     const shouldGuardCodingPlanNavigation =
       options.isCodingPlanGuest ||
       isCodingPlanWebviewUrl(guestUrl) ||
@@ -645,6 +675,17 @@ export function createBrowserWindow(options: {
     // Coding Plan 官网页例外：它需要 window.zcodeBridge 回传购买完成信号，
     // 改用专用 preload（codingPlanWebview.ts），其余 webview 保持原生 Dialog 桥。
     const targetUrl = params.src ?? "about:blank";
+    // 隐藏套餐弹窗不足以阻止旧 webview 恢复 partition；必须在 guest/preload 创建前拒绝。
+    if (
+      (!DESKTOP_PRODUCT_CAPABILITIES.productSubscription ||
+        !DESKTOP_PRODUCT_CAPABILITIES.productAccount) &&
+      // callback 顶层没有 embedded=app，仍属于购买流程，必须在 guest 创建与请求前拒绝。
+      (isCodingPlanWebviewUrl(targetUrl) || isCodingPlanPaymentCallbackUrl(targetUrl))
+    ) {
+      options.logger.warn(PRODUCT_SUBSCRIPTION_UNAVAILABLE);
+      event.preventDefault();
+      return;
+    }
     const isCodingPlanWebview = isCodingPlanEmbeddedWebviewSrc(targetUrl);
     webPreferences.preload = isCodingPlanWebview
       ? codingPlanWebviewPreloadPath

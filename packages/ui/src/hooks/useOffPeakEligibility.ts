@@ -1,3 +1,4 @@
+import { useOptionalPlatform } from "./usePlatform.js";
 import { useEffect } from "react";
 import type { AppSettings } from "@zcode/shared";
 import { useServices } from "@/hooks/useServices.js";
@@ -8,6 +9,9 @@ export function useOffPeakEligibility(
   settings: AppSettings | null | undefined,
   registryRevision: number | undefined,
 ): void {
+  const capabilities = useOptionalPlatform()?.productCapabilities;
+  const enabled =
+    capabilities?.productAccount !== false && capabilities?.productSubscription !== false;
   const { offPeakTaskService, codingPlanSubscriptionService } = useServices();
   const initialize = useOffPeakTaskStore((state) => state.initialize);
   const refresh = useOffPeakTaskStore((state) => state.refreshCodingPlanSupport);
@@ -18,13 +22,14 @@ export function useOffPeakEligibility(
     : undefined;
 
   useEffect(() => {
+    if (!enabled) return;
     void initialize({ offPeakTaskService, codingPlanSubscriptionService });
-  }, [initialize, offPeakTaskService, codingPlanSubscriptionService]);
+  }, [enabled, initialize, offPeakTaskService, codingPlanSubscriptionService]);
 
   useEffect(() => {
-    if (freshnessKey === undefined) return;
+    if (!enabled || freshnessKey === undefined) return;
     // Settings 变化只是失效信号；ProviderSettings View revision 来自 Registry 已完成发布。
     // 即使选择没变，账号稍后就绪也会重查；相同 key 的双入口通知由 Store 去重。
     void refresh(offPeakTaskService, freshnessKey);
-  }, [freshnessKey, offPeakTaskService, refresh]);
+  }, [enabled, freshnessKey, offPeakTaskService, refresh]);
 }

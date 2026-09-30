@@ -32,7 +32,32 @@ const CodingPlanUpgradeDialogContext = createContext<CodingPlanUpgradeDialogCont
   null,
 );
 
+const disabledUpgradeContext: CodingPlanUpgradeDialogContextValue = {
+  inventory: { entryPlanList: "", status: "ready", retry: () => {} },
+  openCodingPlanUpgrade: (_target, observation) => {
+    observation?.onResult(false);
+    return false;
+  },
+};
+
 export function CodingPlanUpgradeDialogProvider({ children }: { children: ReactNode }) {
+  const platform = usePlatform();
+  if (
+    platform.productCapabilities?.productAccount === false ||
+    platform.productCapabilities?.productSubscription === false
+  ) {
+    return (
+      <CodingPlanUpgradeDialogContext.Provider value={disabledUpgradeContext}>
+        {children}
+      </CodingPlanUpgradeDialogContext.Provider>
+    );
+  }
+  return (
+    <EnabledCodingPlanUpgradeDialogProvider>{children}</EnabledCodingPlanUpgradeDialogProvider>
+  );
+}
+
+function EnabledCodingPlanUpgradeDialogProvider({ children }: { children: ReactNode }) {
   const platform = usePlatform();
   const inventory = useCodingPlanEntryPlanList();
   const inventoryRef = useRef(inventory);

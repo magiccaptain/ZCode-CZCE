@@ -1,4 +1,6 @@
 /* oxlint-disable eslint(max-lines) -- Deep Link 路由必须在同一模块内保持协议校验和投递原子性。 */
+import { DESKTOP_PRODUCT_CAPABILITIES } from "./productCapabilities.js";
+import { PRODUCT_ACCOUNT_UNAVAILABLE, PRODUCT_SUBSCRIPTION_UNAVAILABLE } from "@zcode/services";
 import { statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { app, BrowserWindow, dialog } from "electron";
@@ -293,6 +295,14 @@ export function handleDeepLink(
   }
 
   if (isPaymentCallbackUrl(parsedUrl)) {
+    // UI 不订阅仍会让 Main 缓存旧支付回调；必须在投递与聚焦之前拒绝。
+    if (
+      !DESKTOP_PRODUCT_CAPABILITIES.productSubscription ||
+      !DESKTOP_PRODUCT_CAPABILITIES.productAccount
+    ) {
+      logger.warn(PRODUCT_SUBSCRIPTION_UNAVAILABLE);
+      return false;
+    }
     const targetWindow = options.resolveApplicationWindow
       ? options.resolveApplicationWindow()
       : (BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null);
@@ -356,6 +366,11 @@ export function handleDeepLink(
     return false;
   }
 
+  // 产品 OAuth 与通用 MCP 的 localhost 回调不同，禁止旧深链恢复账号状态。
+  if (!DESKTOP_PRODUCT_CAPABILITIES.productAccount) {
+    logger.warn(PRODUCT_ACCOUNT_UNAVAILABLE);
+    return false;
+  }
   const state = parsedUrl.searchParams.get("state");
   if (!state) {
     logger.warn("[deep-link] OAuth 回调缺少 state，忽略此次回调", {
@@ -444,6 +459,8 @@ export function registerDeepLinkProtocol(
 }
 
 export function registerOAuthState(windowId: number, registration: OAuthStateRegistration): void {
+  // 旧 Renderer 请求不能创建路由或五分钟 timer，产品能力先于任何副作用。
+  if (!DESKTOP_PRODUCT_CAPABILITIES.productAccount) throw new Error(PRODUCT_ACCOUNT_UNAVAILABLE);
   oauthStateToWindow.set(registration.state, {
     windowId,
     provider: registration.provider,

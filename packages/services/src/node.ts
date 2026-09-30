@@ -1,5 +1,15 @@
 /* eslint-disable max-lines -- host process 服务注册和启动装配需要集中维护，拆散后会更难追踪依赖注入顺序 */
 // Node.js service implementations — NOT safe to import in browser code
+export {
+  PRODUCT_ACCOUNT_UNAVAILABLE,
+  PRODUCT_SUBSCRIPTION_UNAVAILABLE,
+  type AccountProductCapabilities,
+} from "./productAccountBoundary.js";
+import {
+  assertProductAccountEnabled,
+  isProductSubscriptionEnabled,
+  type AccountProductCapabilities,
+} from "./productAccountBoundary.js";
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -375,6 +385,7 @@ import { createProviderConfigRuntime } from "./model-provider/providerConfigRunt
 import { fetchZCodeBuiltinRemoteRelease } from "./model-provider/zcodeBuiltinRemoteConfig.js";
 import {
   createProviderRuntimeFromConfigRuntime,
+  EmptyAccountProviderConfigSource,
   type ProviderRuntime,
 } from "./model-provider/providerRuntime.js";
 import {
@@ -1334,7 +1345,8 @@ export function createLocalServices(options: {
   serviceAuthorityMode?: ServiceAuthorityMode;
   cuaProductMcpServerResolver?: CuaProductMcpServerResolver;
   /** Desktop 产品组装层传入同源只读视图；不在 services 复制固定产品事实。 */
-  productCapabilities?: Readonly<Pick<ProductCapabilities, "telemetry">>;
+  productCapabilities?: Readonly<Pick<ProductCapabilities, "telemetry">> &
+    AccountProductCapabilities;
   agentRuntimeContext?: {
     getDeviceMid?: () => string | undefined;
     runtimeSurface?: "desktop_local_host" | "remote_workspace_host";
@@ -1371,6 +1383,8 @@ export function createLocalServices(options: {
   cuaOperationStateReporter?: CuaOperationStateReporter;
 }): ServiceCollection {
   const isDesktopAttachedRemote = options?.serviceAuthorityMode === "desktop-attached-remote";
+  const productAccountEnabled = options.productCapabilities?.productAccount !== false;
+  const productSubscriptionEnabled = isProductSubscriptionEnabled(options.productCapabilities);
   // host / remote server 以前直接沿用当前进程环境启动后续服务。
   // GUI 启动的 desktop、SSH/WSL/Docker 拉起的 remote server 往往拿不到用户 login shell 里的 PATH，
   // 导致 bun 这类只在 shell profile 里追加的命令在 ZCode Agent/终端里不可见。
@@ -1406,7 +1420,10 @@ export function createLocalServices(options: {
   const provisioningOAuthKeys = new Set<string>(PROVIDER_PROVISIONING_OAUTH_CREDENTIAL_KEYS);
   const credentialService = createCredentialService({
     onDidMutate: ({ key }) => {
-      if (provisioningOAuthKeys.has(key) || isProviderProvisioningAccountCredentialKey(key)) {
+      if (
+        productAccountEnabled &&
+        (provisioningOAuthKeys.has(key) || isProviderProvisioningAccountCredentialKey(key))
+      ) {
         options.onProviderProvisioningSourceChanged?.("credential");
       }
     },
@@ -1433,7 +1450,9 @@ export function createLocalServices(options: {
     fetchImpl: hostApiNetworkTransport.fetch,
     onZcodeJwtInvalid: (input, headers) => zcodeJwtLogoutHandlerRef.current?.(input, headers),
     isZcodeJwtRequest: (input, headers) =>
-      isCurrentOAuthCredentialRequest({ input, headers, credentialService }),
+      productAccountEnabled
+        ? isCurrentOAuthCredentialRequest({ input, headers, credentialService })
+        : Promise.resolve(false),
     resolveZCodeEndpointOrigin: resolveCurrentZCodeEndpointOrigin,
   });
   const systemService = createSystemService();
@@ -1442,7 +1461,10 @@ export function createLocalServices(options: {
   const taskIndexRepo = new TaskIndexRepo();
   // onboarding 完成记录：userId 由登录态补全（apikey/未登录为 null）。
   const onboardingRecordService = createOnboardingRecordService({
-    loadUserId: async () => (await oauthCredentialRepo.loadActiveUserProfile())?.id ?? null,
+    loadUserId: async () =>
+      productAccountEnabled
+        ? ((await oauthCredentialRepo.loadActiveUserProfile())?.id ?? null)
+        : null,
     hasExistingLocalTask: async () => (await taskIndexRepo.listTaskMetas({})).length > 0,
   });
   let handleOAuthProviderLogout: ReturnType<typeof createOAuthProviderLogoutHandler> | null = null;
@@ -1455,11 +1477,15 @@ export function createLocalServices(options: {
       );
     },
   });
-  const accountProviderApiKeyRemoteClient = new AccountProviderApiClient(apiClient);
+  const accountProviderApiKeyRemoteClient = new AccountProviderApiClient(
+    apiClient,
+    options.productCapabilities,
+  );
   const accountProviderApiKeyResolver = new AccountProviderApiKeyResolver(
     accountProviderApiKeyRemoteClient.fetchRemoteData.bind(accountProviderApiKeyRemoteClient),
   );
   const accountProviderCredentialService = createAccountProviderCredentialService({
+    productCapabilities: options.productCapabilities,
     credentialStore: accountProviderCredentialStore,
     async loadOAuthAccessToken(family) {
       const oauthProviderId = family === "zai" ? ZAI_PROVIDER_ID : BIGMODEL_PROVIDER_ID;
@@ -1477,6 +1503,7 @@ export function createLocalServices(options: {
       oauthCredentialRepo.loadTokenSet(family === "zai" ? ZAI_PROVIDER_ID : BIGMODEL_PROVIDER_ID),
   });
   const readAccountProviderSettings = async () => {
+    assertProductAccountEnabled(options.productCapabilities);
     // 迁移只在账号事实入口协调。ApiClient 的代理/端点仍读普通 Setting，不递归等待迁移。
     // 外部注入的 Setting（远端 attachment）由其所属 Host 管理，不读取本机旧文件。
     const prepare =
@@ -1490,6 +1517,7 @@ export function createLocalServices(options: {
     };
   };
   const loadAccountIdentity = async (family: ProviderFamilyDomain) => {
+    assertProductAccountEnabled(options.productCapabilities);
     const oauthProviderId = family === "zai" ? ZAI_PROVIDER_ID : BIGMODEL_PROVIDER_ID;
     return (await oauthCredentialRepo.loadUserProfile(oauthProviderId))?.id ?? null;
   };
@@ -1515,6 +1543,7 @@ export function createLocalServices(options: {
       resolveTeamPlanApiKey: (access) =>
         resolveAccountTeamPlanRuntimeApiKey({ apiClient, credentialService, access }),
     }),
+    options.productCapabilities,
   );
   const providerConfigLog = createServiceLogger("provider-config");
   const clientConfigPlatform = resolveClientConfigPlatform();
@@ -1561,56 +1590,67 @@ export function createLocalServices(options: {
     // Repository 仅在新 Personal 配置不存在时导入，并保留旧文件以便回滚。
     readLegacyProviders: () => readLegacyZCodeConfigProviders(),
   });
-  const accountProviderConfigSource = createAccountProviderConfigSource({
-    configSource: providerConfigRuntime.configService,
-    readSettings: readAccountProviderSettings,
-    async loadCodingPlanApiKey(providerId, family, accountIdentity, forceRefresh) {
-      if (isStartPlanModelProviderId(providerId)) return null;
-      return accountProviderCredentialService.loadCodingPlanApiKey({
-        providerId,
-        family,
-        accountIdentity,
-        forceRefresh,
-      });
-    },
-    loadAccountIdentity,
-    resolveFamilyAvailability: createCodingPlanFamilyAvailabilityResolver({
-      apiClient,
-      credentialService,
-    }),
-  });
+  // 缺失 overlay 表示不覆盖，不能表示禁用；显式 entitled=false 仍同步给托管 Agent。
+  const activeAccountProviderConfigSource = productAccountEnabled
+    ? createAccountProviderConfigSource({
+        configSource: providerConfigRuntime.configService,
+        readSettings: readAccountProviderSettings,
+        async loadCodingPlanApiKey(providerId, family, accountIdentity, forceRefresh) {
+          if (isStartPlanModelProviderId(providerId)) return null;
+          return accountProviderCredentialService.loadCodingPlanApiKey({
+            providerId,
+            family,
+            accountIdentity,
+            forceRefresh,
+          });
+        },
+        loadAccountIdentity,
+        resolveFamilyAvailability: createCodingPlanFamilyAvailabilityResolver({
+          apiClient,
+          credentialService,
+        }),
+      })
+    : undefined;
+  const accountProviderConfigSource =
+    activeAccountProviderConfigSource ??
+    new EmptyAccountProviderConfigSource(providerConfigRuntime.configService);
   const accountProviderRuntimeLog = createServiceLogger("account-provider-runtime");
   const modelSelectionConfiguredDefaultSource = new NodeModelSelectionConfigRepository({
     personalRepository: providerConfigRuntime.personalRepository,
   });
   const providerProvisioningSource = createProviderProvisioningSource({
+    productCapabilities: options.productCapabilities,
     personalRepository: providerConfigRuntime.personalRepository,
     settingService,
     credentialFilePath: resolveCredentialFilePath(resolveAppConfigDir()),
     personalConfigFilePath: join(resolveAppConfigDir(), PERSONAL_PROVIDER_CONFIG_FILE_NAME),
   });
-  const providerProvisioningDisposers = [
-    providerConfigRuntime.configService.onDidChange((reason) => {
-      // 每个 Window Host 都会轮询同一文件；只把本进程成功提交的 updated
-      // 作为同步触发，避免其它 Host 的 poll-changed 把一次保存重复计入多个代际。
-      if (reason === "personal:updated") {
-        options.onProviderProvisioningSourceChanged?.("personal-config");
-      }
-    }),
-    settingService.onDidUpdate((event) => {
-      if (
-        event.keys.includes("providerFamilyDomain") ||
-        event.keys.includes("providerFamilyConnectionSelections")
-      ) {
-        options.onProviderProvisioningSourceChanged?.("account-settings");
-      }
-    }),
-  ];
-  const disposeAccountProviderInvalidation = bindAccountProviderInvalidation({
-    onDidUpdateSetting: (listener) => settingService.onDidUpdate(listener),
-    refresh: (reason) => accountProviderConfigSource.refresh(reason),
-  });
-  const accountProviderRefreshErrorDispose = accountProviderConfigSource.onDidRefreshError(
+  const providerProvisioningDisposers = productAccountEnabled
+    ? [
+        providerConfigRuntime.configService.onDidChange((reason) => {
+          // 每个 Window Host 都会轮询同一文件；只把本进程成功提交的 updated
+          // 作为同步触发，避免其它 Host 的 poll-changed 把一次保存重复计入多个代际。
+          if (reason === "personal:updated") {
+            options.onProviderProvisioningSourceChanged?.("personal-config");
+          }
+        }),
+        settingService.onDidUpdate((event) => {
+          if (
+            event.keys.includes("providerFamilyDomain") ||
+            event.keys.includes("providerFamilyConnectionSelections")
+          ) {
+            options.onProviderProvisioningSourceChanged?.("account-settings");
+          }
+        }),
+      ]
+    : [];
+  const disposeAccountProviderInvalidation = activeAccountProviderConfigSource
+    ? bindAccountProviderInvalidation({
+        onDidUpdateSetting: (listener) => settingService.onDidUpdate(listener),
+        refresh: (reason) => activeAccountProviderConfigSource.refresh(reason),
+      })
+    : undefined;
+  const accountProviderRefreshErrorDispose = activeAccountProviderConfigSource?.onDidRefreshError(
     (event) => {
       accountProviderRuntimeLog.warn(undefined, "account provider source refresh failed", {
         error: event.error,
@@ -1636,15 +1676,18 @@ export function createLocalServices(options: {
       },
     }),
     disposeAccountSource: () => {
-      disposeAccountProviderInvalidation();
-      accountProviderRefreshErrorDispose();
-      accountProviderConfigSource.dispose();
+      disposeAccountProviderInvalidation?.();
+      accountProviderRefreshErrorDispose?.();
+      activeAccountProviderConfigSource?.dispose();
     },
   });
-  handleOAuthProviderLogout = createOAuthProviderLogoutHandler({
-    accountProviderCredentialStore,
-    refreshAccountProviders: (reason: string) => accountProviderConfigSource.refresh(reason),
-  });
+  handleOAuthProviderLogout = activeAccountProviderConfigSource
+    ? createOAuthProviderLogoutHandler({
+        accountProviderCredentialStore,
+        refreshAccountProviders: (reason: string) =>
+          activeAccountProviderConfigSource.refresh(reason),
+      })
+    : null;
   // 官方 Server MCP 的凭证解析源。MCP 调用的身份头与 MCP 额度查询（/api/v1/mcp/usage）
   // 必须共用这一份实现，否则两处对"当前选中的 Coding Plan 连接"的判定会分叉。
   // 额度侧注入的是凭证解析而非 resolveHeaders：归属校验需要 providerFamily，
@@ -1652,6 +1695,7 @@ export function createLocalServices(options: {
   const officialMcpCredentialSource = {
     resolve: () =>
       resolveOfficialMcpCredentials({
+        productCapabilities: options.productCapabilities,
         accountRequestAuthService,
         credentialService,
         modelSelectionService: providerRuntime.modelSelection,
@@ -2066,6 +2110,7 @@ export function createLocalServices(options: {
     },
   };
   const codingPlanSubscriptionService = createCodingPlanSubscriptionService({
+    productCapabilities: options.productCapabilities,
     apiClient,
     credentialService,
     resolveOffPeakModelSelectionView: async () => {
@@ -2078,7 +2123,7 @@ export function createLocalServices(options: {
   let offPeakTaskServiceForAgent: OffPeakTaskService | undefined;
   // desktop-attached-remote 装配不暴露 Off-Peak 工具面（远程不在支持范围）。
   const offPeakToolWiring =
-    options?.serviceAuthorityMode === "desktop-attached-remote"
+    options?.serviceAuthorityMode === "desktop-attached-remote" || !productSubscriptionEnabled
       ? {}
       : {
           resolveOffPeakClientConfig: () => codingPlanSubscriptionService.getOffPeakClientConfig(),
@@ -2114,6 +2159,7 @@ export function createLocalServices(options: {
     // 官方 Server MCP 身份头：host 是唯一身份权威，Agent 经反向请求索取。
     // Provider 存在性读取正式 Model Selection View；不恢复旧 Provider Snapshot。
     officialMcpAuthHeadersResolver: createOfficialMcpAuthHeadersResolver({
+      productCapabilities: options.productCapabilities,
       accountRequestAuthService,
       credentialService,
       modelSelectionService: providerRuntime.modelSelection,
@@ -2334,8 +2380,9 @@ export function createLocalServices(options: {
     credentialService,
   });
   const oauthService = createOAuthService(credentialService, {
+    productCapabilities: options.productCapabilities,
     apiClient,
-    onProviderLogout: handleOAuthProviderLogout,
+    onProviderLogout: handleOAuthProviderLogout ?? undefined,
   });
   const zcodeJwtLogoutLogger = createServiceLogger("zcode-jwt-logout");
   zcodeJwtLogoutHandlerRef.current = (input, headers) => {
@@ -2403,6 +2450,7 @@ export function createLocalServices(options: {
     apiClient,
     baseUrl: buildRuntimeZCodeApiUrl(process.env, "/api/v1"),
     tokenProvider: async (): Promise<string | null> => {
+      if (!productAccountEnabled) return null;
       const activeProvider = await oauthCredentialRepo.getActiveProvider();
       if (!activeProvider) {
         return null;
@@ -2460,6 +2508,7 @@ export function createLocalServices(options: {
     .register(
       IUsageStatsService,
       createUsageStatsService({
+        productCapabilities: options.productCapabilities,
         apiClient,
         accountRequestAuthService,
         credentialService,
@@ -2496,6 +2545,7 @@ export function createLocalServices(options: {
         // （工厂在注册链求值期执行，此时 services 常量尚未初始化，不能直接引用）
         sqliteReposToClose.push(offPeakTaskRepo);
         const offPeakTaskService = new OffPeakTaskService({
+          productCapabilities: options.productCapabilities,
           repo: offPeakTaskRepo,
           client: createOffPeakServerClient({
             resolveOrigin: originResolver.resolveOrigin,
@@ -2584,6 +2634,7 @@ export function createLocalServices(options: {
       IFeedbackService,
       createFeedbackService({
         ...options?.feedback,
+        productCapabilities: options.productCapabilities,
         apiClient,
         credentialService,
         oauthService,
@@ -2613,13 +2664,16 @@ export function createLocalServices(options: {
   services
     .register(IProviderSettingsService, providerRuntime.providerSettings)
     .register(IModelSelectionService, providerRuntime.modelSelection);
-  if (isDesktopAttachedRemote || options.providerProvisioningTargetEnabled === true) {
+  if (
+    productAccountEnabled &&
+    (isDesktopAttachedRemote || options.providerProvisioningTargetEnabled === true)
+  ) {
     services.register(
       IProviderProvisioningTargetService,
       createProviderProvisioningTarget({
         providerRuntime,
         personalRepository: providerConfigRuntime.personalRepository,
-        accountProviderSource: accountProviderConfigSource,
+        accountProviderSource: activeAccountProviderConfigSource!,
         credentialService,
         settingService,
         personalConfigFilePath: join(resolveAppConfigDir(), PERSONAL_PROVIDER_CONFIG_FILE_NAME),
