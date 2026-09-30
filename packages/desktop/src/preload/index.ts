@@ -1,3 +1,4 @@
+import { DESKTOP_PRODUCT_CAPABILITIES } from "../main/productCapabilities.js";
 import {
   databaseStartupControlSchema,
   databaseStartupStateSchema,
@@ -245,6 +246,7 @@ window.addEventListener("DOMContentLoaded", updateRendererProcessTitle, {
  * 通过 MessagePort RPC 访问，不再经过此 bridge。
  */
 contextBridge.exposeInMainWorld("zcode", {
+  productCapabilities: DESKTOP_PRODUCT_CAPABILITIES,
   connectRemote: (
     options: RemoteTarget,
     requestId?: string,

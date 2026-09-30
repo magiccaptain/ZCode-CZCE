@@ -171,7 +171,7 @@ export function useAppChromeState({
   }, [isDesktop, isMacDesktop, isWindowsDesktop, platform]);
 
   useEffect(() => {
-    if (!platform.onUpdateReady) {
+    if (platform.productCapabilities?.appUpdates === false || !platform.onUpdateReady) {
       return;
     }
 
@@ -198,6 +198,7 @@ export function useAppChromeState({
   }, [platform, workspaceAbsPath, isWindowsDesktop, intl]);
 
   useEffect(() => {
+    if (platform.productCapabilities?.appUpdates === false) return;
     let cancelled = false;
 
     if (platform.getUpdateState) {

@@ -1,3 +1,5 @@
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
+import { shouldShowDesktopUpdateEntry } from "@/lib/desktopUpdateMenu.js";
 /* oxlint-disable eslint(max-lines) -- settings helper 聚合多个设置分组；终端、网络与自动归档多侧能力暂时超过行数限制。 */
 import type {
   IntegratedTerminalShellOption,
@@ -173,6 +175,10 @@ export function GeneralSectionContent({
 }) {
   const { intl } = useZCodeIntl();
   const hasServices = Boolean(useOptionalServices());
+  const appUpdatesEnabled = shouldShowDesktopUpdateEntry(
+    undefined,
+    useOptionalPlatform()?.productCapabilities,
+  );
   // 部分 SSR 单测会用精简 props 直接渲染本组件，新增终端设置项后旧 helper 未必同步传值。
   // 这里把运行时缺省值兜到“继承系统 profile”，避免 undefined.trim() 把无关测试打断。
   const [localTerminalFontFamily, setLocalTerminalFontFamily] = useState(terminalFontFamily);
@@ -574,40 +580,44 @@ export function GeneralSectionContent({
                 />
               }
             />
-            <SettingsRow
-              label={intl.formatMessage({ id: "settings.receivePreviewUpdates" })}
-              description={intl.formatMessage({
-                id: "settings.receivePreviewUpdatesDescription",
-              })}
-              control={
-                <Switch
-                  aria-label={intl.formatMessage({ id: "settings.receivePreviewUpdates" })}
-                  checked={receivePreviewUpdates}
-                  onCheckedChange={(checked) => {
-                    void onReceivePreviewUpdatesChange(checked);
-                  }}
+            {appUpdatesEnabled ? (
+              <>
+                <SettingsRow
+                  label={intl.formatMessage({ id: "settings.receivePreviewUpdates" })}
+                  description={intl.formatMessage({
+                    id: "settings.receivePreviewUpdatesDescription",
+                  })}
+                  control={
+                    <Switch
+                      aria-label={intl.formatMessage({ id: "settings.receivePreviewUpdates" })}
+                      checked={receivePreviewUpdates}
+                      onCheckedChange={(checked) => {
+                        void onReceivePreviewUpdatesChange(checked);
+                      }}
+                    />
+                  }
                 />
-              }
-            />
-            <SettingsRow
-              label={intl.formatMessage({
-                id: "settings.autoDownloadAndInstallUpdates",
-              })}
-              description={intl.formatMessage({
-                id: "settings.autoDownloadAndInstallUpdatesDescription",
-              })}
-              control={
-                <Switch
-                  aria-label={intl.formatMessage({
+                <SettingsRow
+                  label={intl.formatMessage({
                     id: "settings.autoDownloadAndInstallUpdates",
                   })}
-                  checked={autoDownloadAndInstallUpdates}
-                  onCheckedChange={(checked) => {
-                    void onAutoDownloadAndInstallUpdatesChange(checked);
-                  }}
+                  description={intl.formatMessage({
+                    id: "settings.autoDownloadAndInstallUpdatesDescription",
+                  })}
+                  control={
+                    <Switch
+                      aria-label={intl.formatMessage({
+                        id: "settings.autoDownloadAndInstallUpdates",
+                      })}
+                      checked={autoDownloadAndInstallUpdates}
+                      onCheckedChange={(checked) => {
+                        void onAutoDownloadAndInstallUpdatesChange(checked);
+                      }}
+                    />
+                  }
                 />
-              }
-            />
+              </>
+            ) : null}
           </>
         ) : null}
         <SettingsRow

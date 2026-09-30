@@ -226,51 +226,57 @@ export function useRootPlatformEffects({
       }
       logger.warn("[Root] onTaskNotificationClick: task not found in any workspace:", taskId);
     });
-    const disposeUpdateCheckResult = platform.onUpdateCheckResult
-      ? platform.onUpdateCheckResult((payload) => {
-          logger.info("[Root] onUpdateCheckResult:", payload.kind);
-          switch (payload.kind) {
-            case "up-to-date":
-              toast(
-                intl.formatMessage(
-                  { id: "update.toast.upToDate" },
-                  { version: payload.currentVersion },
-                ),
-              );
-              return;
-            case "downloading":
-              toast(
-                intl.formatMessage(
-                  { id: "update.toast.downloading" },
-                  { version: payload.version },
-                ),
-              );
-              return;
-            case "available":
-              toast(
-                intl.formatMessage({ id: "update.toast.available" }, { version: payload.version }),
-              );
-              return;
-            case "already-downloading":
-              toast(
-                intl.formatMessage(
-                  { id: "update.toast.alreadyDownloading" },
-                  { progress: payload.progress },
-                ),
-              );
-              return;
-            case "ready":
-              toast(intl.formatMessage({ id: "update.toast.ready" }, { version: payload.version }));
-              return;
-            case "dev-skipped":
-              toast(intl.formatMessage({ id: "update.toast.devSkipped" }));
-              return;
-            case "error":
-              toast(intl.formatMessage({ id: "update.toast.error" }, { error: payload.message }));
-              return;
-          }
-        })
-      : () => {};
+    const disposeUpdateCheckResult =
+      platform.productCapabilities?.appUpdates !== false && platform.onUpdateCheckResult
+        ? platform.onUpdateCheckResult((payload) => {
+            logger.info("[Root] onUpdateCheckResult:", payload.kind);
+            switch (payload.kind) {
+              case "up-to-date":
+                toast(
+                  intl.formatMessage(
+                    { id: "update.toast.upToDate" },
+                    { version: payload.currentVersion },
+                  ),
+                );
+                return;
+              case "downloading":
+                toast(
+                  intl.formatMessage(
+                    { id: "update.toast.downloading" },
+                    { version: payload.version },
+                  ),
+                );
+                return;
+              case "available":
+                toast(
+                  intl.formatMessage(
+                    { id: "update.toast.available" },
+                    { version: payload.version },
+                  ),
+                );
+                return;
+              case "already-downloading":
+                toast(
+                  intl.formatMessage(
+                    { id: "update.toast.alreadyDownloading" },
+                    { progress: payload.progress },
+                  ),
+                );
+                return;
+              case "ready":
+                toast(
+                  intl.formatMessage({ id: "update.toast.ready" }, { version: payload.version }),
+                );
+                return;
+              case "dev-skipped":
+                toast(intl.formatMessage({ id: "update.toast.devSkipped" }));
+                return;
+              case "error":
+                toast(intl.formatMessage({ id: "update.toast.error" }, { error: payload.message }));
+                return;
+            }
+          })
+        : () => {};
     return () => {
       disposeFocusTab();
       disposeNewTab();

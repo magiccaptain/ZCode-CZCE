@@ -1,3 +1,4 @@
+import { DESKTOP_PRODUCT_CAPABILITIES } from "./productCapabilities.js";
 import {
   DEFAULT_ZCODE_ENDPOINT_ORIGIN,
   ZCODE_VERSION,
@@ -217,6 +218,10 @@ function formatForceUpdateDialogText(
 export async function maybeBlockStartupForForceUpdate(
   options: ForceUpdateGuardOptions,
 ): Promise<ForceUpdateGuardResult> {
+  if (!DESKTOP_PRODUCT_CAPABILITIES.appUpdates) {
+    options.logger.info("[force-update] disabled by product capability");
+    return { blocked: false };
+  }
   const requirement = await resolveDesktopForceUpdateRequirement({
     ...options,
     endpointOrigin: options.endpointOrigin,

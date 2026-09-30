@@ -100,7 +100,7 @@ export function UpdateStatusButton({
     setDialogOpen(true);
   }, [platform]);
 
-  if (!displayVersion) return null;
+  if (platform.productCapabilities?.appUpdates === false || !displayVersion) return null;
 
   // 更新弹窗和按钮 hover 共用同一个更新日志标题，避免 feed 自带 releaseName 与正文标题重复。
   const releaseNotesTitle = intl.formatMessage(

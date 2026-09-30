@@ -1,3 +1,4 @@
+import { assertAppUpdatesAvailable } from "./productCapabilities.js";
 /* eslint-disable max-lines -- 桌面命令分发需要共享窗口与平台上下文，集中维护更便于一致性 */
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -12,7 +13,6 @@ import {
   type Locale,
   resolveRuntimeZCodeEndpointOrigin,
   ZCODE_ENV,
-  ZCODE_PRODUCT_FLAVOR,
   buildZCodeEndpointUrls,
   getCommunityUrlFromConfigs,
   getFeedbackUrlFromConfig,
@@ -589,12 +589,8 @@ export async function executeDesktopCommand(options: {
       );
       return;
     case DesktopCommandIds.CheckForUpdates:
-      // 按产品身份而不是后端环境放行：生产后端的 Preview 同样没有更新器。
-      if (ZCODE_PRODUCT_FLAVOR === "production") {
-        checkForUpdateMenuClick(targetWindow);
-      } else {
-        options.logger.info("[auto-update] Preview 已禁用手动更新检查");
-      }
+      assertAppUpdatesAvailable();
+      checkForUpdateMenuClick(targetWindow);
       return;
     case DesktopCommandIds.RelaunchApp:
       await options.onRelaunchApp();

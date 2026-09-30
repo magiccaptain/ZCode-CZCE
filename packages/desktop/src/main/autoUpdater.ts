@@ -1,3 +1,4 @@
+import { DESKTOP_PRODUCT_CAPABILITIES, assertAppUpdatesAvailable } from "./productCapabilities.js";
 /* eslint-disable max-lines -- autoUpdater 需要集中维护 Electron 事件、菜单状态与 IPC 交互，过度拆分会让更新状态流更难追踪 */
 import type { ISettingService } from "@zcode/services";
 import {
@@ -21,6 +22,8 @@ import semver from "semver";
 import { logger } from "./logger.js";
 import { getElectronReleasePlatform, ManifestUpdateProvider } from "./manifestUpdateProvider.js";
 const { autoUpdater } = pkg;
+// 固定产品规则先于历史缓存和初始化生效，阻止 electron-updater 退出安装。
+if (!DESKTOP_PRODUCT_CAPABILITIES.appUpdates) autoUpdater.autoInstallOnAppQuit = false;
 
 export const CHECK_FOR_UPDATE_MENU_ID = "check-for-update";
 const AUTO_UPDATE_POLL_INTERVAL_MS = 60 * 60 * 1000;
@@ -94,7 +97,10 @@ type UpdateDownloadedInfoLike = {
 type RuntimeUpdateFeedSource = { url: string };
 
 type AutoUpdaterMenuState = UpdateStatePayload;
-let menuState: AutoUpdaterMenuState = { kind: "idle", enabled: true };
+let menuState: AutoUpdaterMenuState = {
+  kind: "idle",
+  enabled: DESKTOP_PRODUCT_CAPABILITIES.appUpdates,
+};
 
 export type ForceAutoUpdateState =
   | { kind: "checking" }
@@ -152,7 +158,7 @@ function isDevAutoUpdateEnabled(): boolean {
 }
 
 function canUseAutoUpdaterInCurrentRuntime(): boolean {
-  return app.isPackaged || isDevAutoUpdateEnabled();
+  return DESKTOP_PRODUCT_CAPABILITIES.appUpdates && (app.isPackaged || isDevAutoUpdateEnabled());
 }
 
 function shouldRelaunchForDevAutoUpdateInstall(): boolean {
@@ -393,6 +399,10 @@ function buildDownloadProgressState(
 }
 
 async function quitAndInstallUpdate(rejectUnavailable = false) {
+  if (!DESKTOP_PRODUCT_CAPABILITIES.appUpdates) {
+    if (rejectUnavailable) assertAppUpdatesAvailable();
+    return;
+  }
   if (
     menuState.kind === "update-downloaded" &&
     readyUpdateVersion &&
@@ -1288,6 +1298,7 @@ export function setAutoUpdaterMenuLocale(locale: Locale) {
 }
 
 export async function hydratePendingPostUpdateReleaseNotes(settingService: SettingServiceLike) {
+  if (!DESKTOP_PRODUCT_CAPABILITIES.appUpdates) return;
   const settings = await settingService.get();
   pendingPostUpdateReleaseNotes = settings.pendingPostUpdateReleaseNotes ?? null;
   deliveredPostUpdateReleaseNotesWebContentsId = null;
@@ -1332,6 +1343,7 @@ export async function hydratePendingPostUpdateReleaseNotes(settingService: Setti
 }
 
 export function syncReadyUpdateToWindow(win: BrowserWindow) {
+  if (!DESKTOP_PRODUCT_CAPABILITIES.appUpdates) return;
   if (!readyUpdateVersion || win.isDestroyed()) {
     return;
   }
@@ -1413,6 +1425,7 @@ export function syncAutoUpdaterStateToWindow(win: BrowserWindow) {
 }
 
 export function syncPostUpdateReleaseNotesToWindow(win: BrowserWindow) {
+  if (!DESKTOP_PRODUCT_CAPABILITIES.appUpdates) return;
   if (!pendingPostUpdateReleaseNotes || win.isDestroyed()) {
     return;
   }
@@ -1441,6 +1454,7 @@ export async function acknowledgePostUpdateReleaseNotes(
   version: string,
   settingService: SettingServiceLike,
 ) {
+  assertAppUpdatesAvailable();
   if (!pendingPostUpdateReleaseNotes) {
     logger.info(
       `[auto-update] ignore release notes ack without pending payload version=${version}`,
@@ -1460,6 +1474,22 @@ export async function acknowledgePostUpdateReleaseNotes(
 }
 
 export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Promise<void> {
+  if (!DESKTOP_PRODUCT_CAPABILITIES.appUpdates) {
+    // 禁用分支仍注册旧 IPC 的明确拒绝结果；不会启动更新器事件、网络或轮询。
+    for (const channel of [
+      PlatformChannels.QuitAndInstallUpdate,
+      PlatformChannels.DownloadUpdate,
+      PlatformChannels.CancelUpdateDownload,
+      PlatformChannels.SkipUpdateVersion,
+    ]) {
+      ipcMain.handle(channel, () => assertAppUpdatesAvailable());
+    }
+    ipcMain.on(PlatformChannels.QuitAndInstallUpdate, () => {
+      logger.info("[auto-update] rejected legacy install: APP_UPDATES_UNAVAILABLE");
+    });
+    logger.info("[auto-update] disabled by product capability");
+    return;
+  }
   if (options.enabled === false) {
     autoUpdaterDisabledForProductFlavor = true;
     if (autoUpdatePollTimer) {
@@ -1766,6 +1796,10 @@ export function requestForceAutoUpdate(
   reason = "force-update",
   _minimumVersion?: string,
 ) {
+  if (!DESKTOP_PRODUCT_CAPABILITIES.appUpdates) {
+    onStateChange({ kind: "error", message: "APP_UPDATES_UNAVAILABLE" });
+    return () => {};
+  }
   const dispose = () => {
     if (activeForceAutoUpdateListener === onStateChange) {
       activeForceAutoUpdateListener = null;
@@ -1835,6 +1869,7 @@ export function requestForceAutoUpdate(
 }
 
 export function checkForUpdateMenuClick(originWindow?: BrowserWindow | null) {
+  assertAppUpdatesAvailable();
   logger.info("[auto-update] user clicked Check for Updates");
 
   const targetWindow =

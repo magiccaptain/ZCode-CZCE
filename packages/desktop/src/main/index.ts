@@ -1,3 +1,4 @@
+import { DESKTOP_PRODUCT_CAPABILITIES, assertAppUpdatesAvailable } from "./productCapabilities.js";
 import { createLocalTtftExporter } from "./localTtftExporter.js";
 /* eslint-disable max-lines */
 import "./desktopEarlyDataBaseDirBootstrap.js";
@@ -976,6 +977,7 @@ function syncImmediateAppSettings(patch: Partial<AppSettings>) {
 }
 
 async function getAutoUpdatePreferences() {
+  if (!DESKTOP_PRODUCT_CAPABILITIES.appUpdates) return { autoDownloadAndInstallUpdates: false };
   const settings = await mainSettingService.get();
   return {
     autoDownloadAndInstallUpdates: settings.autoDownloadAndInstallUpdates ?? false,
@@ -983,6 +985,7 @@ async function getAutoUpdatePreferences() {
 }
 
 async function setAutoDownloadAndInstallUpdates(enabled: boolean) {
+  assertAppUpdatesAvailable();
   await mainSettingService.update({
     autoDownloadAndInstallUpdates: enabled,
   });
@@ -1526,6 +1529,7 @@ function syncUpdateStatusWindowLayout(win: BrowserWindow) {
 }
 
 function openUpdateStatusWindow() {
+  assertAppUpdatesAvailable();
   if (updateStatusWindow && !updateStatusWindow.isDestroyed()) {
     if (updateStatusWindow.isMinimized()) {
       updateStatusWindow.restore();
@@ -2013,7 +2017,7 @@ app.whenReady().then(async () => {
   // Preview 身份无论连接哪个后端都不自动更新：stable feed 上只分发正式 ZCode 安装包，
   // 不向 Preview 渠道提供更新。
   void initAutoUpdater({
-    enabled: ZCODE_PRODUCT_FLAVOR === "production",
+    enabled: DESKTOP_PRODUCT_CAPABILITIES.appUpdates && ZCODE_PRODUCT_FLAVOR === "production",
     onBeforeQuitAndInstall: async () => {
       notifyStabilityLifecycle("update_install");
       await prepareAppQuit("auto-update quitAndInstall", "update-install");
@@ -2256,7 +2260,9 @@ app.whenReady().then(async () => {
   // gate 照常生效，对真实用户零影响。
   const skipForceUpdateForLocalDevRuntime = !app.isPackaged;
   const forceUpdateGuardResult =
-    ZCODE_PRODUCT_FLAVOR === "production" && !skipForceUpdateForLocalDevRuntime
+    DESKTOP_PRODUCT_CAPABILITIES.appUpdates &&
+    ZCODE_PRODUCT_FLAVOR === "production" &&
+    !skipForceUpdateForLocalDevRuntime
       ? await maybeBlockStartupForForceUpdate({
           locale: currentApplicationLocale,
           logger,
@@ -2266,7 +2272,9 @@ app.whenReady().then(async () => {
           },
         })
       : { blocked: false };
-  if (ZCODE_PRODUCT_FLAVOR !== "production") {
+  if (!DESKTOP_PRODUCT_CAPABILITIES.appUpdates) {
+    logger.info("[force-update] disabled by product capability");
+  } else if (ZCODE_PRODUCT_FLAVOR !== "production") {
     logger.info("[force-update] Preview 跳过远端强制升级检查");
   } else if (skipForceUpdateForLocalDevRuntime) {
     logger.info("[force-update] 本地 dev 构建（未打包）跳过远端强制升级检查");

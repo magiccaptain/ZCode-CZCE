@@ -1,5 +1,10 @@
 import { recordArmsCustomEventForE2E } from "@zcode/ui";
-import { DesktopCommandIds, buildLocalMediaPreviewUrl, type IPlatformService } from "@zcode/shared";
+import {
+  DesktopCommandIds,
+  productCapabilitiesSchema,
+  buildLocalMediaPreviewUrl,
+  type IPlatformService,
+} from "@zcode/shared";
 
 import { desktopBrowserPlatformBridge } from "./desktopBrowserPlatformBridge.js";
 
@@ -7,6 +12,12 @@ export function createDesktopPlatform(options: {
   isLocalDevelopmentRuntime: boolean;
 }): IPlatformService {
   return {
+    productCapabilities: Object.freeze(
+      productCapabilitiesSchema.parse(
+        (window as unknown as { zcode: { productCapabilities: unknown } }).zcode
+          .productCapabilities,
+      ),
+    ),
     canSelectFilePath: true,
     createLocalMediaPreviewUrl: buildLocalMediaPreviewUrl,
     isLocalDevelopmentRuntime: options.isLocalDevelopmentRuntime,

@@ -69,6 +69,8 @@ export function UpdateStatusWindowRoot({
     };
   }, [platform]);
 
+  if (platform.productCapabilities?.appUpdates === false) return null;
+
   return (
     <div className="min-h-screen bg-transparent text-foreground">
       {/* 独立更新窗口不挂 workspace setting/broadcast service，不能只依赖启动时 locale。

@@ -10,7 +10,8 @@ import { logger } from "@/logger.js";
 
 export function useDesktopUpdateMenu(isDesktop: boolean) {
   const platform = usePlatform();
-  const visible = isDesktop && shouldShowDesktopUpdateEntry();
+  const visible =
+    isDesktop && shouldShowDesktopUpdateEntry(undefined, platform.productCapabilities);
   const [state, setState] = useState<UpdateStatePayload | null>(null);
 
   useEffect(() => {

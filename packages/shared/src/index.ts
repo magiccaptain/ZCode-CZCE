@@ -306,3 +306,6 @@ export * from "./clientConfig.js";
 export * from "./pluginStoreOrdering.js";
 export * from "./session-debug.js";
 export { redactFeedbackText } from "./feedbackPrivacy.js";
+
+export { productCapabilitiesSchema, APP_UPDATES_UNAVAILABLE } from "./productCapabilities.js";
+export type { ProductCapabilities } from "./productCapabilities.js";

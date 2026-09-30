@@ -355,6 +355,33 @@ nodes:
     codeSeeds:
       - file: apps/zcode-cli/packages/core/src/runtime/methods/turn-model.ts
         symbol: applySubmissionExecutionState
+  - id: capability.desktop-product-rules
+    kind: capability
+    label: Fixed local Desktop product capabilities
+    aliases: [统一产品能力配置, 本地 Fork, product capabilities]
+    codeSeeds:
+      - file: packages/desktop/src/main/productCapabilities.ts
+        symbol: DESKTOP_PRODUCT_CAPABILITIES
+      - file: packages/shared/src/productCapabilities.ts
+        symbol: productCapabilitiesSchema
+  - id: capability.desktop-app-updates
+    kind: capability
+    label: Product-gated Desktop application updates
+    aliases: [应用更新关闭, 自动更新, force update]
+    codeSeeds:
+      - file: packages/desktop/src/main/autoUpdater.ts
+        symbol: initAutoUpdater
+      - file: packages/desktop/src/main/forceUpdateGuard.ts
+        symbol: maybeBlockStartupForForceUpdate
+  - id: surface.desktop-update-entry
+    kind: surface
+    label: Native menu and shared UI update entries
+    codeSeeds:
+      - file: packages/desktop/src/main/desktopApplicationMenu.ts
+        symbol: rebuildApplicationMenu
+      - file: packages/ui/src/lib/desktopUpdateMenu.ts
+        symbol: shouldShowDesktopUpdateEntry
+
 edges:
   - from: capability.model-selection
     to: surface.conversation-model-control
@@ -598,3 +625,14 @@ edges:
     type: emits-model-selection-for
     rank: must-inspect
     condition: Applied runtime model selection is projected through ModelSelected events.
+
+  - from: capability.desktop-product-rules
+    to: capability.desktop-app-updates
+    type: gates-execution
+    rank: must-inspect
+    note: Fixed product rule is checked before startup, recovery and every update execution boundary; other declared disabled capabilities await later PRs.
+  - from: capability.desktop-app-updates
+    to: surface.desktop-update-entry
+    type: renders-in
+    rank: must-inspect
+    note: Native menu reads the fixed Desktop rule; shared UI reads its platform view. Hiding an entry alone does not disable execution.

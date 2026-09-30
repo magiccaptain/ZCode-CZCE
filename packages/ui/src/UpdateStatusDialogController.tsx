@@ -85,6 +85,7 @@ export function UpdateStatusDialogController({
   }, [updateStatusViewModel]);
 
   useEffect(() => {
+    if (platform.productCapabilities?.appUpdates === false) return;
     let disposed = false;
 
     const refreshAutoUpdatePreferences = () => {
@@ -279,6 +280,8 @@ export function UpdateStatusDialogController({
   const releaseDateLabel = restoredReleaseDate
     ? intl.formatMessage({ id: "updateDialog.releaseDate" }, { date: restoredReleaseDate })
     : null;
+
+  if (platform.productCapabilities?.appUpdates === false) return null;
 
   return (
     <UpdateStatusDialog
