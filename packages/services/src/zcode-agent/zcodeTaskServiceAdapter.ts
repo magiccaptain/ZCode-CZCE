@@ -3086,6 +3086,14 @@ export function createZCodeTaskServiceAdapter(
         workspacePath: params.workspacePath,
         workspaceIdentity: params.workspaceIdentity,
       };
+      // 远端拒绝必须先于共享 taskId 目标缓存写入，否则会污染其他本地 attachment 的合法目标。
+      const upstreamEvent = options.zcodeAgentService.onDynamicSessionEvent({
+        workspacePath: params.workspacePath,
+        workspaceIdentity: params.workspaceIdentity,
+        sessionId: params.taskId,
+        deliveryKind: toZCodeDeliveryKind(params.deliveryKind),
+        includeSnapshot: params.deliveryKind === "replayable",
+      });
       rememberTaskTarget(target);
       return (listener) => {
         const localDisposable = getTaskEmitter(target).event(listener);
@@ -3096,13 +3104,14 @@ export function createZCodeTaskServiceAdapter(
         // 协议与手机 store 整链重做。
         // 过渡归宿 = replayable 读路径 v4 store，与 host/index.ts 镜像、
         // mapStateUpdated/mapServiceEvent、agentService.onDynamicSessionEvent 同批摘除。
-        const upstreamDisposable = options.zcodeAgentService.onDynamicSessionEvent({
-          workspacePath: params.workspacePath,
-          workspaceIdentity: params.workspaceIdentity,
-          sessionId: params.taskId,
-          deliveryKind: toZCodeDeliveryKind(params.deliveryKind),
-          includeSnapshot: params.deliveryKind === "replayable",
-        })((event) => mapServiceEvent(target, event));
+        let upstreamDisposable: { dispose(): void };
+        try {
+          upstreamDisposable = upstreamEvent((event) => mapServiceEvent(target, event));
+        } catch (error) {
+          // admission 已通过，但上游 listener 注册仍可能同步失败，必须释放已注册的本地 listener。
+          localDisposable.dispose();
+          throw error;
+        }
         return {
           dispose() {
             upstreamDisposable.dispose();

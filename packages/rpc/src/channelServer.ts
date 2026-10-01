@@ -24,6 +24,8 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
     private ctx: TContext,
     private timeoutDelay = 1000,
     private deferInit = false,
+    /** 仅处理同步事件 admission；true 表示调用者已拒绝订阅，false/缺省保留原异常。 */
+    private onEventListenError?: (error: unknown) => boolean,
   ) {
     this.protocolListener = this.protocol.onMessage((msg) => this.onRawMessage(msg));
     if (!this.deferInit) {
@@ -203,17 +205,24 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
       return;
     }
 
-    const disposable = channel.listen(
-      this.ctx,
-      request.name,
-      request.arg,
-    )((data) => {
-      this.sendResponse({
-        id: request.id,
-        data,
-        type: ResponseType.EventFire,
+    let disposable: IDisposable;
+    try {
+      disposable = channel.listen(
+        this.ctx,
+        request.name,
+        request.arg,
+      )((data) => {
+        this.sendResponse({
+          id: request.id,
+          data,
+          type: ResponseType.EventFire,
+        });
       });
-    });
+    } catch (error) {
+      // 动态事件的产品拒绝会同步抛出；只让 attachment 显式处理 admission，不能杀死共享 Host。
+      if (this.onEventListenError?.(error) === true) return;
+      throw error;
+    }
     this.activeRequests.set(request.id, disposable);
   }
 

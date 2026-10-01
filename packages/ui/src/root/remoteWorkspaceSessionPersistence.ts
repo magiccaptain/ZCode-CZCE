@@ -1,4 +1,8 @@
-import type { AppSettings, RemoteWorkspaceSessionEntry } from "@zcode/shared";
+import type {
+  AppSettings,
+  RemoteProductCapabilities,
+  RemoteWorkspaceSessionEntry,
+} from "@zcode/shared";
 import { resolveStartupLocalWorkspaceSessionIndex } from "@zcode/shared";
 import {
   buildPersistedWorkspaceSessionEntries,
@@ -57,6 +61,7 @@ export function restorePersistedRemoteWorkspaceSessions({
   settings,
   tabStoreApi,
   allowRemoteWorkspaceRestore = true,
+  productCapabilities,
   unavailableWorkspacePath,
   conversationWorkspacePath,
   restoreMode = "all",
@@ -64,6 +69,7 @@ export function restorePersistedRemoteWorkspaceSessions({
   settings: AppSettings;
   tabStoreApi: TabStore;
   allowRemoteWorkspaceRestore?: boolean;
+  productCapabilities?: RemoteProductCapabilities;
   unavailableWorkspacePath?: string;
   conversationWorkspacePath?: string;
   restoreMode?: "all" | "active-first";
@@ -157,7 +163,7 @@ export function restorePersistedRemoteWorkspaceSessions({
       continue;
     }
 
-    if (!allowRemoteWorkspaceRestore) {
+    if (!allowRemoteWorkspaceRestore || productCapabilities?.remoteWorkspaces === false) {
       // 远程连接入口被策略隐藏时，启动恢复不能悄悄拉起远程 workspace tab。
       // 否则用户看不到入口却仍保留“断连态远程项”，会造成展示与能力不一致。
       continue;

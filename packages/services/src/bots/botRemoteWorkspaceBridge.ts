@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
+  REMOTE_WORKSPACES_UNAVAILABLE,
+  type RemoteProductCapabilities,
   HostResponseTypes,
   hostBotRemoteWorkspaceConnectionStatusResultMessageSchema,
   hostBotRemoteWorkspaceRuntimePortMessageSchema,
@@ -27,10 +29,34 @@ interface ParentPortMessageEvent {
 }
 
 export function createBotRemoteWorkspaceService(params: {
+  productCapabilities?: RemoteProductCapabilities;
   parentPort?: ParentPortLike | null;
   settingService: ISettingService;
   credentialService: ICredentialService;
 }) {
+  // 旧 Bot 远端绑定不能读取凭据或注册恢复监听；保留本地 Bot 装配及明确失败契约。
+  if (params.productCapabilities?.remoteWorkspaces === false) {
+    return {
+      async isConnected(): Promise<boolean> {
+        return false;
+      },
+      async ensureConnected(): Promise<{ ok: boolean; message?: string }> {
+        return { ok: false, message: REMOTE_WORKSPACES_UNAVAILABLE };
+      },
+      async getZCodeTaskService(): Promise<IZCodeTaskServiceShape | null> {
+        throw new Error(REMOTE_WORKSPACES_UNAVAILABLE);
+      },
+      async getModelSelectionService(): Promise<
+        RemoteBotWorkspaceRuntimeServices["modelSelectionService"] | null
+      > {
+        throw new Error(REMOTE_WORKSPACES_UNAVAILABLE);
+      },
+      async syncAppRuntimePreferences(
+        _preferences: ZCodeAgentAppRuntimePreferences,
+      ): Promise<void> {},
+      dispose(): void {},
+    };
+  }
   const parentPort = params.parentPort;
   if (!parentPort) {
     return undefined;

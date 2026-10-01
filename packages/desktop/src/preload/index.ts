@@ -1,4 +1,5 @@
 import { DESKTOP_PRODUCT_CAPABILITIES } from "../main/productCapabilities.js";
+import { REMOTE_WORKSPACES_UNAVAILABLE } from "@zcode/shared";
 import {
   DISABLED_RENDERER_ACTION_TRACE_CONFIG,
   databaseStartupControlSchema,
@@ -256,12 +257,15 @@ contextBridge.exposeInMainWorld("zcode", {
       workspaceIdentity?: string;
       connectTrigger?: import("@zcode/shared").RemoteWorkspaceConnectTrigger;
     },
-  ) =>
-    ipcRenderer.invoke(PlatformChannels.ConnectRemote, {
+  ) => {
+    if (!DESKTOP_PRODUCT_CAPABILITIES.remoteWorkspaces)
+      return Promise.resolve({ success: false, error: REMOTE_WORKSPACES_UNAVAILABLE });
+    return ipcRenderer.invoke(PlatformChannels.ConnectRemote, {
       target: options,
       requestId,
       ...(context ? context : {}),
-    }),
+    });
+  },
   cancelPendingRemoteConnection: (requestId?: string): Promise<void> =>
     ipcRenderer.invoke(PlatformChannels.CancelPendingRemoteConnection, {
       requestId,
@@ -270,15 +274,29 @@ contextBridge.exposeInMainWorld("zcode", {
     remoteSessionId: string;
     workspacePath: string;
     workspaceIdentity?: string;
-  }): Promise<void> =>
-    ipcRenderer.invoke(PlatformChannels.BindRemoteWorkspaceSessionContext, context),
+  }): Promise<void> => {
+    if (!DESKTOP_PRODUCT_CAPABILITIES.remoteWorkspaces)
+      return Promise.reject(new Error(REMOTE_WORKSPACES_UNAVAILABLE));
+    return ipcRenderer.invoke(PlatformChannels.BindRemoteWorkspaceSessionContext, context);
+  },
   disposeRemoteSession: (sessionId: string): Promise<void> =>
     ipcRenderer.invoke(PlatformChannels.DisposeRemoteSession, sessionId),
-  isDockerAvailable: (): Promise<boolean> => ipcRenderer.invoke(PlatformChannels.IsDockerAvailable),
-  listWSLDistros: () => ipcRenderer.invoke(PlatformChannels.ListWSLDistros),
-  listDockerContainers: () => ipcRenderer.invoke(PlatformChannels.ListDockerContainers),
+  isDockerAvailable: (): Promise<boolean> =>
+    DESKTOP_PRODUCT_CAPABILITIES.remoteWorkspaces
+      ? ipcRenderer.invoke(PlatformChannels.IsDockerAvailable)
+      : Promise.resolve(false),
+  listWSLDistros: () =>
+    DESKTOP_PRODUCT_CAPABILITIES.remoteWorkspaces
+      ? ipcRenderer.invoke(PlatformChannels.ListWSLDistros)
+      : Promise.resolve([]),
+  listDockerContainers: () =>
+    DESKTOP_PRODUCT_CAPABILITIES.remoteWorkspaces
+      ? ipcRenderer.invoke(PlatformChannels.ListDockerContainers)
+      : Promise.resolve([]),
   listSSHConfigAliases: (): Promise<SSHConfigAliasOption[]> =>
-    ipcRenderer.invoke(PlatformChannels.ListSSHConfigAliases),
+    DESKTOP_PRODUCT_CAPABILITIES.remoteWorkspaces
+      ? ipcRenderer.invoke(PlatformChannels.ListSSHConfigAliases)
+      : Promise.resolve([]),
   loadMcpFromUserDirectory: (payload?: LoadCliMcpFromUserDirectoryRequest) =>
     ipcRenderer.invoke(PlatformChannels.LoadMcpFromUserDirectory, payload ?? {}),
   saveMcpToUserDirectory: (payload: SaveCliMcpToUserDirectoryRequest) =>

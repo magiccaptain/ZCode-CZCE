@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- desktop runtime/env 解析需要集中维护 main/host/remote assets 的启动边界，拆分会扩大远程连接回归面。 */
+import { DESKTOP_PRODUCT_CAPABILITIES } from "./productCapabilities.js";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve, win32 } from "node:path";
@@ -92,21 +93,26 @@ export type RemoteAssetDirs = Pick<
 type LocalRuntimeEnv = Record<string, string | undefined>;
 
 export async function isDockerDaemonAvailable(): Promise<boolean> {
+  // 发现也会启动外部命令；关闭时必须在动态加载 backend 前返回。
+  if (!DESKTOP_PRODUCT_CAPABILITIES.remoteWorkspaces) return false;
   const { isDockerAvailable } = await import("@zcode/server/remote");
   return isDockerAvailable();
 }
 
 export async function listAvailableWSLDistros() {
+  if (!DESKTOP_PRODUCT_CAPABILITIES.remoteWorkspaces) return [];
   const { listWSLDistros } = await import("@zcode/server/remote");
   return listWSLDistros();
 }
 
 export async function listAvailableDockerContainers() {
+  if (!DESKTOP_PRODUCT_CAPABILITIES.remoteWorkspaces) return [];
   const { listDockerContainers } = await import("@zcode/server/remote");
   return listDockerContainers();
 }
 
 export async function listSSHConfigAliases() {
+  if (!DESKTOP_PRODUCT_CAPABILITIES.remoteWorkspaces) return [];
   return await listSSHConfigAliasesFromLocalConfig();
 }
 

@@ -16,6 +16,7 @@ export {
   type PluginMarketplaceCapabilities,
 } from "./pluginMarketplaceBoundary.js";
 import { randomBytes } from "node:crypto";
+import { withWorkspaceTargetAdmission, taskWorkspaceTargets } from "./workspaceTargetAdmission.js";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -1353,7 +1354,9 @@ export function createLocalServices(options: {
   productCapabilities?: Readonly<Partial<Pick<ProductCapabilities, "telemetry">>> &
     AccountProductCapabilities &
     PluginMarketplaceCapabilities &
-    Readonly<Partial<Pick<ProductCapabilities, "sharing">>>;
+    Readonly<
+      Partial<Pick<ProductCapabilities, "sharing" | "remoteWorkspaces" | "mobileRemoteControl">>
+    >;
   agentRuntimeContext?: {
     getDeviceMid?: () => string | undefined;
     runtimeSurface?: "desktop_local_host" | "remote_workspace_host";
@@ -2138,7 +2141,7 @@ export function createLocalServices(options: {
           resolveOffPeakClientConfig: () => codingPlanSubscriptionService.getOffPeakClientConfig(),
           resolveOffPeakTaskService: () => offPeakTaskServiceForAgent,
         };
-  const zcodeAgentService = createZCodeAgentService({
+  const rawZCodeAgentService = createZCodeAgentService({
     productCapabilities: options.productCapabilities,
     ...(agentAccountProviderConfigSource
       ? { accountProviderConfigSource: agentAccountProviderConfigSource }
@@ -2318,6 +2321,12 @@ export function createLocalServices(options: {
           },
         }),
   });
+  // 仅守住 RPC connection facade 会被公开 Session/Task 等持有 raw Agent 的服务绕过。
+  // 装配时统一 admission，所有消费者复用同源能力 guard；握手/订阅仍由原 connection scope 拥有。
+  const zcodeAgentService = withWorkspaceTargetAdmission(
+    rawZCodeAgentService,
+    options.productCapabilities,
+  );
   providerConnectivityAgentService = zcodeAgentService;
   // Helper health probe 短暂超时不应在 Computer Use turn 中途回收 Agent。resolver 会把 restart
   // 推迟到下一个 request/turn 边界；若 broker 确实已失效，当前 turn 会自然失败并由下一次请求恢复。
@@ -2377,14 +2386,20 @@ export function createLocalServices(options: {
     commitMessageGenerator: gitCommitMessageGenerator,
   });
   // task wrapper 由 ZCode task service adapter 提供；核心 session 状态由 ZCode agent server 维护。
-  const zcodeTaskService = createZCodeTaskServiceAdapter({
-    zcodeAgentService,
-    taskIndexRepo,
-    taskIndexSyncer: zcodeTaskIndexSyncer,
-    settingService,
-    cuaProductMcpServerResolver,
-  });
+  // Task 会在调用 Agent 前变更目标/cache/索引；必须在交给 RPC/Bots 等消费者前统一拒绝旧远端入站。
+  const zcodeTaskService = withWorkspaceTargetAdmission(
+    createZCodeTaskServiceAdapter({
+      zcodeAgentService,
+      taskIndexRepo,
+      taskIndexSyncer: zcodeTaskIndexSyncer,
+      settingService,
+      cuaProductMcpServerResolver,
+    }),
+    options.productCapabilities,
+    taskWorkspaceTargets,
+  );
   const botRemoteWorkspaceService = createBotRemoteWorkspaceService({
+    productCapabilities: options.productCapabilities,
     parentPort: options?.parentPort,
     settingService,
     credentialService,
@@ -2504,6 +2519,7 @@ export function createLocalServices(options: {
     .register(
       IBotsService,
       createBotsService({
+        productCapabilities: options.productCapabilities,
         credentialService,
         zcodeTaskService,
         broadcastService,

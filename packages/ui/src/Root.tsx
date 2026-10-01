@@ -157,9 +157,11 @@ function RootInner({
   allowOpenWorkspace = true,
   preferDirectoryBrowser,
   supportsEmbeddedBrowser: explicitSupportsEmbeddedBrowser,
-  allowRemoteWorkspace = true,
+  allowRemoteWorkspace: requestedAllowRemoteWorkspace = true,
   initialWorkspaceLoadingFallback,
 }: RootProps) {
+  const allowRemoteWorkspace =
+    requestedAllowRemoteWorkspace && platform.productCapabilities?.remoteWorkspaces !== false;
   useEffect(() => {
     setMcpStorePlatform(platform);
     // 对话 UI perf 只属于 desktop-continuous；Web/mobile 即使能看到权威状态也不装 reporter。
@@ -479,10 +481,14 @@ function RootInner({
 
   useBotBroadcastEffects(services, tabStoreApi);
 
-  const handleOpenRemoteConnection = useCallback((preference?: RemoteConnectionOpenPreference) => {
-    setRemoteConnectionOpenPreference(preference ?? null);
-    setRemoteConnectionDialogOpen(true);
-  }, []);
+  const handleOpenRemoteConnection = useCallback(
+    (preference?: RemoteConnectionOpenPreference) => {
+      if (!allowRemoteWorkspace) return;
+      setRemoteConnectionOpenPreference(preference ?? null);
+      setRemoteConnectionDialogOpen(true);
+    },
+    [allowRemoteWorkspace],
+  );
   const handleOpenDirectoryBrowser = useCallback(() => {
     setDirectoryBrowserOpen(true);
   }, []);

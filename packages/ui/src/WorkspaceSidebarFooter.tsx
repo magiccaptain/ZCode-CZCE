@@ -45,6 +45,7 @@ import { useZCodeStore } from "@/store/StoreProvider.js";
 import { normalizeInterfaceMode } from "@/lib/interfaceMode.js";
 import type { Theme } from "@/useTheme.js";
 import { WorkspaceWebRemoteControlTrigger } from "@/WorkspaceWebRemoteControlTrigger.js";
+import { WorkspaceBotsTrigger } from "@/WorkspaceBotsTrigger.js";
 import {
   WorkspaceSidebarFooterPlanBadge,
   WorkspaceSidebarFooterUsageSummaryContent,
@@ -380,11 +381,18 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
         </DropdownMenu>
         <div className="flex shrink-0 items-center gap-1.5">
           {isDesktop && workspacePath ? (
-            <WorkspaceWebRemoteControlTrigger
-              workspacePath={workspacePath}
-              workspaceIdentity={workspaceIdentity}
-              compact
-            />
+            platform.productCapabilities?.mobileRemoteControl === false ? (
+              <WorkspaceBotsTrigger
+                workspacePath={workspacePath}
+                workspaceIdentity={workspaceIdentity}
+              />
+            ) : (
+              <WorkspaceWebRemoteControlTrigger
+                workspacePath={workspacePath}
+                workspaceIdentity={workspaceIdentity}
+                compact
+              />
+            )
           ) : null}
           <ControlHintTooltip title={settingsButtonLabel}>
             <Button

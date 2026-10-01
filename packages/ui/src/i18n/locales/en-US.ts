@@ -548,6 +548,7 @@ const enUS: Record<string, string> = {
   "confirmDialog.projectRemoveTitle": "Remove this project?",
   "confirmDialog.projectRemoveDescription":
     "Project “{projectName}” will be removed from the sidebar, but files on disk will remain untouched.",
+  "remote.history.productUnavailable": "Unavailable in this local version",
   "bots.title": "Bots",
   "bots.description": "Connect external chats and webhooks to ZCode bots.",
   "bots.listTitle": "Bots",

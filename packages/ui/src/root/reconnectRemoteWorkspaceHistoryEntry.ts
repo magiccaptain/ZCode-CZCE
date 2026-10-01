@@ -1,6 +1,10 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { IPlatformService, RemoteWorkspaceSessionEntry } from "@zcode/shared";
-import { stripRemoteTargetSecrets } from "@zcode/shared";
+import {
+  assertRemoteWorkspacesAvailable,
+  stripRemoteTargetSecrets,
+  type RemoteProductCapabilities,
+} from "@zcode/shared";
 import type { IServiceAccessor } from "@zcode/services";
 import { toast } from "@/components/ui/toast.js";
 import {
@@ -25,6 +29,7 @@ export type BindRemoteWorkspaceSessionContextFn = (params: {
 }) => Promise<void>;
 
 type ManualReconnectRemoteWorkspaceParams = {
+  productCapabilities?: RemoteProductCapabilities;
   sessionEntry: RemoteWorkspaceSessionEntry;
   activateTabByPath: (workspacePath: string, options?: { workspaceIdentity?: string }) => boolean;
   setReconnectingRemoteWorkspaceKeys: Dispatch<SetStateAction<string[]>>;
@@ -81,6 +86,7 @@ export interface ReconnectRemoteWorkspaceOptions {
 }
 
 export async function reconnectRemoteWorkspaceHistoryEntry({
+  productCapabilities,
   sessionEntry,
   activateTabByPath,
   setReconnectingRemoteWorkspaceKeys,
@@ -100,6 +106,8 @@ export async function reconnectRemoteWorkspaceHistoryEntry({
   onWorkspaceActivated,
   options,
 }: ManualReconnectRemoteWorkspaceParams): Promise<void> {
+  // 旧直接重连必须在读取凭据/写标签/写历史之前拒绝，不可把远端 path 降为本地。
+  assertRemoteWorkspacesAvailable(productCapabilities);
   const activateWorkspaceAfterReconnect = options?.activateWorkspaceAfterReconnect ?? true;
   const showErrorToast = options?.showErrorToast ?? true;
   const fallbackWorkspaceIdentity = resolveRemoteWorkspaceSessionIdentity(sessionEntry);

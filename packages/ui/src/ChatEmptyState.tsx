@@ -33,6 +33,7 @@ import { getPathLeaf } from "@/lib/path.js";
 import {
   formatRemoteWorkspaceTargetSubtitle,
   hasRemoteWorkspaceIdentity,
+  resolveRemoteWorkspaceSessionIdentity,
 } from "@/lib/remoteWorkspaceHistory.js";
 import { logger } from "@/logger.js";
 import { SSHDialog } from "@/SSHDialog.js";
@@ -246,12 +247,14 @@ export function ChatEmptyWorkspacePreviewMenu({
     () =>
       filterVisibleWorkspaceMenuTabs({
         workspaceTabs: workspaceTabs.filter(
-          (workspaceTab) => workspaceTab.workspacePurpose !== "conversation",
+          (workspaceTab) =>
+            workspaceTab.workspacePurpose !== "conversation" &&
+            (canUseRemoteWorkspace || !hasRemoteWorkspaceIdentity(workspaceTab)),
         ),
         homeWorkspaceLabel,
         searchQuery: workspaceSearchQuery,
       }),
-    [homeWorkspaceLabel, workspaceSearchQuery, workspaceTabs],
+    [canUseRemoteWorkspace, homeWorkspaceLabel, workspaceSearchQuery, workspaceTabs],
   );
   const currentWorkspaceTitle = isConversationWorkspace
     ? intl.formatMessage({ id: "chat.empty.selectProject" })
@@ -390,6 +393,32 @@ export function ChatEmptyWorkspacePreviewMenu({
             </div>
           ) : null}
 
+          {!showRemoteConnectionEntry
+            ? remoteWorkspaceSessions
+                .filter((entry) =>
+                  `${entry.workspacePath} ${formatRemoteWorkspaceTargetSubtitle(entry.target)}`
+                    .toLowerCase()
+                    .includes(workspaceSearchQuery.trim().toLowerCase()),
+                )
+                .map((entry) => (
+                  <DropdownMenuItem
+                    key={resolveRemoteWorkspaceSessionIdentity(entry) || entry.workspacePath}
+                    disabled
+                    data-testid="remote-workspace-history-unavailable"
+                  >
+                    <Cloud className="size-4 shrink-0 text-foreground-subtle" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{getPathLeaf(entry.workspacePath)}</span>
+                      <span className="block truncate text-ui-sm text-foreground-subtle">
+                        {formatRemoteWorkspaceTargetSubtitle(entry.target)}
+                      </span>
+                      <span className="block text-ui-sm text-foreground-subtle">
+                        {intl.formatMessage({ id: "remote.history.productUnavailable" })}
+                      </span>
+                    </span>
+                  </DropdownMenuItem>
+                ))
+            : null}
           <DropdownMenuSeparator />
           {allowOpenWorkspace ? (
             <DropdownMenuItem onSelect={onOpenFolder}>

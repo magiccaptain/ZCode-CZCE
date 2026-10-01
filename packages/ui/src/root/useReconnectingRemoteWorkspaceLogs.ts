@@ -42,6 +42,7 @@ export function useReconnectingRemoteWorkspaceLogs({
   }, [reconnectingWorkspaceKeys]);
 
   useEffect(() => {
+    if (platform.productCapabilities?.remoteWorkspaces === false) return;
     const unsubscribe = platform.onRemoteConnectionLog((entry) => {
       const normalizedMessage = normalizeRemoteConnectionLogMessage(entry.message);
       if (!normalizedMessage) {

@@ -314,3 +314,4 @@ export {
   PLUGIN_MARKETPLACE_CAPABILITY_ENV,
 } from "./productCapabilities.js";
 export type { ProductCapabilities } from "./productCapabilities.js";
+export * from "./remoteProductCapabilities.js";

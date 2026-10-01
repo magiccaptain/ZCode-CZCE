@@ -12,6 +12,7 @@ import { Button, buttonVariants } from "@/components/ui/button.js";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog.js";
 import { useCancelPendingRemoteConnection } from "@/hooks/useCancelPendingRemoteConnection.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
+import { useRemoteConnectionEntryVisibility } from "@/hooks/useRemoteConnectionEntryVisibility.js";
 import { useRemoteConnectionForm } from "@/hooks/useRemoteConnectionForm.js";
 import { useRemoteConnectionLogs } from "@/hooks/useRemoteConnectionLogs.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -64,7 +65,13 @@ interface RemoteConnectionDialogProps {
   preferredWslDistro?: string;
 }
 
-export function RemoteConnectionDialog({
+export function RemoteConnectionDialog(props: RemoteConnectionDialogProps) {
+  // 旧直接挂载也必须在发现/日志 effects 的子组件初始化前裁决。
+  const enabled = useRemoteConnectionEntryVisibility();
+  return enabled ? <RemoteConnectionDialogContent {...props} /> : null;
+}
+
+function RemoteConnectionDialogContent({
   onConnect,
   onSelectProject,
   onCancelSession,

@@ -3,6 +3,11 @@
 // ownership；base service 仍只转发 CLI 事实，不在 host/main/relay 复制业务状态。
 import { Emitter, Event as RpcEvent, type Event, type IDisposable } from "@zcode/rpc";
 import {
+  assertMobileRemoteControlAvailable,
+  assertWorkspaceTargetAvailable,
+  type RemoteProductCapabilities,
+} from "@zcode/shared";
+import {
   V4_WIRE_PROTOCOL_VERSION,
   clientHelloSchema,
   clientSupportsWorkflowRunDeltas,
@@ -237,7 +242,11 @@ export interface ZCodeAgentConnectionScope {
 export function createZCodeAgentConnectionScope(
   base: IZCodeAgentService,
   context: ZCodeAgentV4ConnectionContext,
+  productCapabilities?: RemoteProductCapabilities,
 ): ZCodeAgentConnectionScope {
+  // 必须在订阅/lifecycle 监听初始化前拒绝旧手机 attachment，不改共享 replay 协议。
+  if (context.clientMode === "web-remote-replayable")
+    assertMobileRemoteControlAvailable(productCapabilities);
   assertConnectionId(context.connectionId);
   const role = context.role ?? "terminal-client";
   const owned = new Map<string, OwnedSubscription>();
@@ -1021,9 +1030,15 @@ export function createZCodeAgentConnectionScope(
   const service = new Proxy(base, {
     get(target, property, receiver) {
       const override = Reflect.get(overrides, property, receiver);
-      if (override !== undefined) return override;
-      const value = Reflect.get(target, property, target);
-      return typeof value === "function" ? value.bind(target) : value;
+      const value = override ?? Reflect.get(target, property, target);
+      if (typeof value !== "function") return value;
+      return (...args: unknown[]) => {
+        // 旧远端请求即使送到本地端口也不能同路径回落；不删除或改写 identity。
+        const params = args[0];
+        if (params && typeof params === "object")
+          assertWorkspaceTargetAvailable(productCapabilities, params);
+        return value.apply(override !== undefined ? overrides : target, args);
+      };
     },
   });
 

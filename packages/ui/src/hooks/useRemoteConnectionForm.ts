@@ -42,6 +42,7 @@ export function useRemoteConnectionForm({
   preferredWslDistro?: string;
 }) {
   const platform = usePlatform();
+  const remoteWorkspacesEnabled = platform.productCapabilities?.remoteWorkspaces !== false;
   const [kind, setKind] = useState<RemoteKind>("ssh");
   const [host, setHostState] = useState("");
   const [port, setPortState] = useState("22");
@@ -75,8 +76,8 @@ export function useRemoteConnectionForm({
   const dockerOptionsActiveLoadIdRef = useRef(0);
   const dockerOptionsInFlightLoadIdRef = useRef<number | null>(null);
   const availableKinds = useMemo(
-    () => buildAvailableKinds({ isWindowsDesktop }),
-    [isWindowsDesktop],
+    () => (remoteWorkspacesEnabled ? buildAvailableKinds({ isWindowsDesktop }) : []),
+    [isWindowsDesktop, remoteWorkspacesEnabled],
   );
 
   useEffect(() => {
@@ -119,6 +120,8 @@ export function useRemoteConnectionForm({
 
   const refreshDockerContainers = useCallback(
     ({ clearContainersOnError = true }: { clearContainersOnError?: boolean } = {}) => {
+      // 旧 hook 消费者和显式刷新不能绕过产品关闭发起 Docker 探测。
+      if (!remoteWorkspacesEnabled) return;
       if (
         dockerOptionsInFlightLoadIdRef.current != null &&
         dockerOptionsInFlightLoadIdRef.current === dockerOptionsActiveLoadIdRef.current
@@ -167,11 +170,11 @@ export function useRemoteConnectionForm({
         }
       });
     },
-    [platform],
+    [platform, remoteWorkspacesEnabled],
   );
 
   useEffect(() => {
-    if (!open || kind !== "ssh" || sshConfigAliasesLoaded) {
+    if (!remoteWorkspacesEnabled || !open || kind !== "ssh" || sshConfigAliasesLoaded) {
       return;
     }
 
@@ -206,7 +209,7 @@ export function useRemoteConnectionForm({
     return () => {
       cancelled = true;
     };
-  }, [kind, open, platform, sshConfigAliasesLoaded]);
+  }, [kind, open, platform, remoteWorkspacesEnabled, sshConfigAliasesLoaded]);
 
   useEffect(() => {
     if (!selectedSshConfigAlias) {
@@ -221,7 +224,13 @@ export function useRemoteConnectionForm({
   }, [selectedSshConfigAlias, sshConfigAliases]);
 
   useEffect(() => {
-    if (!open || kind !== "wsl" || !isWindowsDesktop || wslOptionsLoaded) {
+    if (
+      !remoteWorkspacesEnabled ||
+      !open ||
+      kind !== "wsl" ||
+      !isWindowsDesktop ||
+      wslOptionsLoaded
+    ) {
       return;
     }
 
@@ -256,15 +265,15 @@ export function useRemoteConnectionForm({
     return () => {
       cancelled = true;
     };
-  }, [isWindowsDesktop, kind, open, platform, wslOptionsLoaded]);
+  }, [isWindowsDesktop, kind, open, platform, remoteWorkspacesEnabled, wslOptionsLoaded]);
 
   useEffect(() => {
-    if (!open || kind !== "docker" || dockerOptionsLoaded) {
+    if (!remoteWorkspacesEnabled || !open || kind !== "docker" || dockerOptionsLoaded) {
       return;
     }
 
     refreshDockerContainers({ clearContainersOnError: true });
-  }, [dockerOptionsLoaded, kind, open, refreshDockerContainers]);
+  }, [dockerOptionsLoaded, kind, open, refreshDockerContainers, remoteWorkspacesEnabled]);
 
   const setHost = (value: string) => {
     if (!applyingSshAliasRef.current && selectedSshConfigAlias && value !== host) {

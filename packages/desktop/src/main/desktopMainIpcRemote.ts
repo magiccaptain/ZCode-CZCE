@@ -6,6 +6,8 @@ import { PRODUCT_ACCOUNT_UNAVAILABLE, PRODUCT_SUBSCRIPTION_UNAVAILABLE } from "@
 import { isOAuthCallbackUrl } from "./desktopDeepLinkUrl.js";
 import { getDesktopArmsRum } from "./desktopArmsRum.js";
 import {
+  REMOTE_WORKSPACES_UNAVAILABLE,
+  assertRemoteWorkspacesAvailable,
   armsCustomEventPayloadSchema,
   buildRemoteWorkspaceConnectResultTelemetry,
   classifyRemoteUsageError,
@@ -446,6 +448,9 @@ export function registerRemoteIpcHandlers(options: {
   });
 
   ipcMain.handle(PlatformChannels.ConnectRemote, async (event, rawPayload: unknown) => {
+    // 产品关闭优先于旧 payload 和窗口查找，避免历史恢复启动部署或发现进程。
+    if (!DESKTOP_PRODUCT_CAPABILITIES.remoteWorkspaces)
+      return { success: false, error: REMOTE_WORKSPACES_UNAVAILABLE };
     const wrappedPayload: {
       target: unknown;
       requestId?: unknown;
@@ -569,6 +574,7 @@ export function registerRemoteIpcHandlers(options: {
   ipcMain.handle(
     PlatformChannels.BindRemoteWorkspaceSessionContext,
     async (event, rawPayload: unknown) => {
+      assertRemoteWorkspacesAvailable(DESKTOP_PRODUCT_CAPABILITIES);
       if (!rawPayload || typeof rawPayload !== "object") {
         throw new Error("远程 workspace context payload 无效");
       }
@@ -601,6 +607,7 @@ export function registerRemoteIpcHandlers(options: {
   });
 
   ipcMain.handle(PlatformChannels.IsDockerAvailable, async () => {
+    if (!DESKTOP_PRODUCT_CAPABILITIES.remoteWorkspaces) return false;
     try {
       return await options.isDockerDaemonAvailable();
     } catch (error) {
@@ -610,6 +617,7 @@ export function registerRemoteIpcHandlers(options: {
   });
 
   ipcMain.handle(PlatformChannels.ListWSLDistros, async () => {
+    if (!DESKTOP_PRODUCT_CAPABILITIES.remoteWorkspaces) return [];
     try {
       return await options.listAvailableWSLDistros();
     } catch (error) {
@@ -619,6 +627,7 @@ export function registerRemoteIpcHandlers(options: {
   });
 
   ipcMain.handle(PlatformChannels.ListDockerContainers, async () => {
+    if (!DESKTOP_PRODUCT_CAPABILITIES.remoteWorkspaces) return [];
     try {
       return await options.listAvailableDockerContainers();
     } catch (error) {
@@ -628,6 +637,7 @@ export function registerRemoteIpcHandlers(options: {
   });
 
   ipcMain.handle(PlatformChannels.ListSSHConfigAliases, async () => {
+    if (!DESKTOP_PRODUCT_CAPABILITIES.remoteWorkspaces) return [];
     try {
       return await options.listSSHConfigAliases();
     } catch (error) {

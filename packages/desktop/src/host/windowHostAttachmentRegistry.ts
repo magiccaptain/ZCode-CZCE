@@ -1,4 +1,8 @@
-import type { WindowHostAttachmentScope } from "@zcode/shared";
+import {
+  assertHostAttachmentAvailable,
+  type RemoteProductCapabilities,
+  type WindowHostAttachmentScope,
+} from "@zcode/shared";
 import type { ZCodeAgentV4ClientMode } from "@zcode/services";
 
 interface WindowHostAttachmentPort {
@@ -37,6 +41,7 @@ export function createWindowHostAttachmentRegistry<
   TPort extends WindowHostAttachmentPort,
   TCapabilities = never,
 >(options: {
+  productCapabilities?: RemoteProductCapabilities;
   resolveScope: (
     scope: WindowHostAttachmentScope,
   ) => WindowHostResolvedAttachmentScope<TServices, TCapabilities>;
@@ -61,6 +66,8 @@ export function createWindowHostAttachmentRegistry<
     scope: WindowHostAttachmentScope;
     port: TPort;
   }): void {
+    // 禁用 attachment 在解析 scope/expose 前拒绝，不能影响已有本地端口或创建恢复事实。
+    assertHostAttachmentAvailable(options.productCapabilities, params);
     // scope 必须先由 Host registry 验证；验证失败时不能影响同 attachmentId 的现有端口。
     const resolved = options.resolveScope(params.scope);
     const exposedParams: WindowHostExposeAttachmentParams<TServices, TPort, TCapabilities> = {

@@ -107,6 +107,7 @@ export function useRemoteConnectionLogs(activeRequestId?: string | null) {
   }, [activeRequestId]);
 
   useEffect(() => {
+    if (platform.productCapabilities?.remoteWorkspaces === false) return;
     const unsubscribe = platform.onRemoteConnectionLog((entry) => {
       if (!shouldAcceptRemoteConnectionRuntimeLog(entry, activeRequestIdRef.current)) {
         return;

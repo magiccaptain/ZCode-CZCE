@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
@@ -7,7 +8,15 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { WebRemoteControlDialog } from "@/WebRemoteControlDialog.js";
 
-export function WorkspaceWebRemoteControlTrigger({
+export function WorkspaceWebRemoteControlTrigger(
+  props: Parameters<typeof WorkspaceWebRemoteControlTriggerContent>[0],
+) {
+  const enabled = useOptionalPlatform()?.productCapabilities?.mobileRemoteControl !== false;
+  // 禁用旧远控包装入口，不挂载 Bot Channel 弹层；独立 Bots 设置不受影响。
+  return enabled ? <WorkspaceWebRemoteControlTriggerContent {...props} /> : null;
+}
+
+function WorkspaceWebRemoteControlTriggerContent({
   workspacePath,
   workspaceIdentity,
   compact = false,

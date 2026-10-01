@@ -73,6 +73,7 @@ export function useRemoteWorkspaceTabLifecycle({
   platform: IPlatformService;
   onRemoteWorkspaceTabsClosed?: (workspaceKeys: string[]) => void;
 }) {
+  const remoteWorkspacesEnabled = platform.productCapabilities?.remoteWorkspaces !== false;
   const previousWorkspaceTabsRef = useRef<WindowTabState[]>([]);
   const rememberedSessionIdsByWorkspaceKeyRef = useRef<Map<string, string>>(new Map());
 
@@ -89,7 +90,8 @@ export function useRemoteWorkspaceTabLifecycle({
       rememberedSessionIdsByWorkspaceKeyRef.current,
     );
     if (closedRemoteWorkspaceKeys.length > 0) {
-      onRemoteWorkspaceTabsClosed?.(closedRemoteWorkspaceKeys);
+      // 禁用旧标签只清理运行代理，不能通过关闭事件删除保留的远端历史。
+      if (remoteWorkspacesEnabled) onRemoteWorkspaceTabsClosed?.(closedRemoteWorkspaceKeys);
       for (const workspaceKey of closedRemoteWorkspaceKeys) {
         rememberedSessionIdsByWorkspaceKeyRef.current.delete(workspaceKey);
       }
@@ -143,7 +145,7 @@ export function useRemoteWorkspaceTabLifecycle({
         return nextTab.workspacePath === previousTab.workspacePath;
       });
 
-      if (survivingRemoteTab?.remoteSessionId) {
+      if (remoteWorkspacesEnabled && survivingRemoteTab?.remoteSessionId) {
         // 之前只按 workspacePath 维护映射，关闭同路径 remote tab 时会把另一个远端 tab 一起“解绑”。
         // 这里优先复用幸存 tab 的绑定，并同步刷新 workspaceIdentity 映射，避免后续 RPC 命中错误 session。
         bindRemoteWorkspacePath(
@@ -193,10 +195,10 @@ export function useRemoteWorkspaceTabLifecycle({
     }
 
     previousWorkspaceTabsRef.current = nextWorkspaceTabs;
-  }, [onRemoteWorkspaceTabsClosed, platform, tabs]);
+  }, [onRemoteWorkspaceTabsClosed, platform, remoteWorkspacesEnabled, tabs]);
 
   useEffect(() => {
-    if (!activeWorkspaceTab?.remoteSessionId) {
+    if (!remoteWorkspacesEnabled || !activeWorkspaceTab?.remoteSessionId) {
       return;
     }
 
@@ -214,5 +216,6 @@ export function useRemoteWorkspaceTabLifecycle({
     activeWorkspaceTab?.remoteSessionId,
     activeWorkspaceTab?.workspaceIdentity,
     activeWorkspaceTab?.workspacePath,
+    remoteWorkspacesEnabled,
   ]);
 }

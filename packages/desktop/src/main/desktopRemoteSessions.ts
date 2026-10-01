@@ -3,6 +3,9 @@ import { randomUUID } from "node:crypto";
 import { BrowserWindow, MessageChannelMain } from "electron";
 import type { MessagePortMain, UtilityProcess as ElectronUtilityProcess } from "electron";
 import {
+  assertRemoteWorkspacesAvailable,
+  assertMobileRemoteControlAvailable,
+  type RemoteProductCapabilities,
   buildRemoteWorkspaceIdentity,
   buildRemoteEnvironmentKey,
   buildSshRemoteHostKey,
@@ -134,6 +137,7 @@ function closeMessagePort(port: MessagePortMain | undefined): void {
 }
 
 export function createRemoteWorkspaceSessionManager(options: {
+  productCapabilities?: RemoteProductCapabilities;
   logger: {
     info: (...args: unknown[]) => void;
     warn: (...args: unknown[]) => void;
@@ -674,6 +678,8 @@ export function createRemoteWorkspaceSessionManager(options: {
     context?: RemoteWorkspaceSessionContext,
     lifecycle?: { remoteUsageTelemetryEligible?: boolean },
   ): Promise<string> {
+    // 旧历史和 Bot 可绕过 UI；必须先拒绝，再查 Host/解析 WSL/准备部署资源。
+    assertRemoteWorkspacesAvailable(options.productCapabilities);
     if (appShutdownStarted) {
       throw new Error("应用正在退出，无法创建远程工作区连接");
     }
@@ -725,6 +731,7 @@ export function createRemoteWorkspaceSessionManager(options: {
     context: RemoteWorkspaceSessionContext,
     expectedWebContentsId?: number,
   ): Promise<void> {
+    assertRemoteWorkspacesAvailable(options.productCapabilities);
     const route = routesBySessionId.get(sessionId);
     if (!route) {
       if (expectedWebContentsId != null) {
@@ -763,6 +770,7 @@ export function createRemoteWorkspaceSessionManager(options: {
   }
 
   function reattachRemoteWorkspaceSessionsForWindow(win: BrowserWindow, reason: string): void {
+    if (options.productCapabilities?.remoteWorkspaces === false) return;
     for (const route of routesBySessionId.values()) {
       if (route.webContentsId === win.webContents.id && route.attachmentState === "attachable") {
         void attachRendererPort(win, route, reason).catch((error: unknown) => {
@@ -890,6 +898,8 @@ export function createRemoteWorkspaceSessionManager(options: {
     port: MessagePortMain;
     remoteKind: RemoteTarget["kind"];
   } {
+    assertRemoteWorkspacesAvailable(options.productCapabilities);
+    assertMobileRemoteControlAvailable(options.productCapabilities);
     const route = routesBySessionId.get(params.remoteSessionId);
     if (!route) {
       throw Object.assign(
@@ -949,6 +959,7 @@ export function createRemoteWorkspaceSessionManager(options: {
       requestId?: string;
     },
   ): Promise<string> {
+    assertRemoteWorkspacesAvailable(options.productCapabilities);
     const existing = Array.from(routesBySessionId.entries()).find(([, route]) => {
       return (
         route.webContentsId === win.webContents.id &&
@@ -975,6 +986,7 @@ export function createRemoteWorkspaceSessionManager(options: {
     params: { target: RemoteTarget; workspacePath: string; workspaceIdentity: string },
     _requestId?: string,
   ): Promise<MessagePortMain> {
+    assertRemoteWorkspacesAvailable(options.productCapabilities);
     const routeEntry = Array.from(routesBySessionId.entries()).find(([, route]) => {
       return (
         route.webContentsId === win.webContents.id &&

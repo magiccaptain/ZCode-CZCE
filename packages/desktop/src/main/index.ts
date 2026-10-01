@@ -791,6 +791,7 @@ app.on("browser-window-created", (_event, win) => {
 });
 
 const remoteSessionManager = createRemoteWorkspaceSessionManager({
+  productCapabilities: DESKTOP_PRODUCT_CAPABILITIES,
   logger,
   windowHostProcessMap,
   resolveRemoteAssetDirs: () =>

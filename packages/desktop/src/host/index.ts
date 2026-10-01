@@ -1,5 +1,10 @@
 import { buildPluginMarketplaceSpawnEnv } from "@zcode/services/node";
 import { DESKTOP_PRODUCT_CAPABILITIES } from "../main/productCapabilities.js";
+import {
+  assertRemoteWorkspacesAvailable,
+  assertHostAttachmentAvailable,
+  REMOTE_WORKSPACES_UNAVAILABLE,
+} from "@zcode/shared";
 /* eslint-disable max-lines -- Host 入口集中编排 local/remote service wiring，本次退出保护需要在同一处桥接 host 上报。 */
 /* eslint-disable max-lines -- host process 入口集中维护 local/remote 初始化和资源回收，realtime bridge 接入后先保持同文件收口。 */
 /**
@@ -16,6 +21,7 @@ import { DESKTOP_PRODUCT_CAPABILITIES } from "../main/productCapabilities.js";
  * 3. 后续远端 connect / scoped attachment 都由同一 Host 处理
  */
 import { createHostDatabaseStartup } from "./hostDatabaseStartup.js";
+import { createRemoteEventAdmissionHandler } from "./remoteEventAdmission.js";
 import { randomUUID } from "node:crypto";
 import {
   MessagePortProtocol,
@@ -1640,6 +1646,7 @@ async function createWindowRemoteConnectionHandle(params: {
   remoteAssets: RemoteAssetDirs;
   signal: AbortSignal;
 }): Promise<WindowRemoteConnectionHandle<ServiceCollection, HostRemoteConnectionCapabilities>> {
+  assertRemoteWorkspacesAvailable(DESKTOP_PRODUCT_CAPABILITIES);
   if (!activeServices) throw new Error("Local Host services are not initialized.");
   const clientConfigService = activeServices.get(IClientConfigService);
   if (params.signal.aborted) {
@@ -2000,17 +2007,28 @@ function exposeServicesOnMessagePort(
   // renderer 会立即发请求但 channel 还没注册，导致 "Unknown channel" 超时错误。
   // attach 模式复用已就绪服务，必须立即初始化新的 RPC MessagePort。
   logger.info(`creating ChannelServer (deferInit=${deferInit})`);
-  const rawServer = new ChannelServer(protocol, "host", 1000, deferInit);
+  const rawServer = new ChannelServer(
+    protocol,
+    "host",
+    1000,
+    deferInit,
+    // 构造时尚无 channel；native MessagePort 后续分发时 handle 已完成，复用原幂等清理。
+    createRemoteEventAdmissionHandler(() => handle.dispose()),
+  );
   const loggedServer = new LoggingChannelServer(rawServer, logRpc);
   const server = DESKTOP_PRODUCT_CAPABILITIES.telemetry
     ? new NetworkTelemetryChannelServer(loggedServer)
     : loggedServer;
   const agentService = services.getOptional(IZCodeAgentService);
   const connectionScope = agentService
-    ? createZCodeAgentConnectionScope(agentService, {
-        connectionId: `host-rpc-${randomUUID()}`,
-        clientMode,
-      })
+    ? createZCodeAgentConnectionScope(
+        agentService,
+        {
+          connectionId: `host-rpc-${randomUUID()}`,
+          clientMode,
+        },
+        DESKTOP_PRODUCT_CAPABILITIES,
+      )
     : undefined;
   services.register(IWindowControllerService, windowHostControllerRuntime.service);
   const controllerAttachment = windowHostControllerRuntime.createAttachmentService();
@@ -2098,6 +2116,7 @@ const windowHostAttachmentRegistry = createWindowHostAttachmentRegistry<
   Electron.MessagePortMain,
   HostRemoteConnectionCapabilities
 >({
+  productCapabilities: DESKTOP_PRODUCT_CAPABILITIES,
   resolveScope: (scope: WindowHostAttachmentScope) => {
     if (scope.kind === "local") {
       if (!activeServices) {
@@ -2563,6 +2582,15 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
   }
 
   if (msg.type === HostMessageTypes.ConnectRemoteWorkspace) {
+    // 旧 Main 消息也可能直达 Host：返回原失败契约，不启动 registry/backend 部署。
+    if (!DESKTOP_PRODUCT_CAPABILITIES.remoteWorkspaces) {
+      parentPort?.postMessage({
+        type: HostResponseTypes.RemoteWorkspaceConnectFailed,
+        requestId: msg.requestId,
+        error: REMOTE_WORKSPACES_UNAVAILABLE,
+      });
+      return;
+    }
     const workspacePath = msg.workspacePath ?? "/";
     const workspaceIdentity =
       msg.workspaceIdentity ?? buildRemoteWorkspaceIdentity(workspacePath, msg.target);
@@ -2649,6 +2677,10 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
   }
 
   if (msg.type === HostMessageTypes.BindRemoteWorkspaceContext) {
+    if (!DESKTOP_PRODUCT_CAPABILITIES.remoteWorkspaces) {
+      logger.warn(REMOTE_WORKSPACES_UNAVAILABLE);
+      return;
+    }
     const previous = windowRemoteConnectionRegistry.getSession(msg.remoteSessionId);
     let workspaceReady: Promise<void>;
     try {
@@ -2735,6 +2767,14 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
   if (msg.type === HostMessageTypes.AttachServicePort) {
     if (!port) {
       logger.error("attach-service-port message missing MessagePort");
+      return;
+    }
+    try {
+      // 拒绝必须先于启动等待队列；否则旧手机端口会在数据库 ready 时被恢复。
+      assertHostAttachmentAvailable(DESKTOP_PRODUCT_CAPABILITIES, msg);
+    } catch (error) {
+      rejectUnavailableAttachedServicePort(port, false);
+      logger.warn("attachment unavailable for this product", error);
       return;
     }
     if (msg.scope.kind === "local" && databaseStartup?.coordinator.snapshot.phase !== "ready") {
@@ -2951,6 +2991,7 @@ async function setupRemoteConnection(
   deployLockMode: DeployLockMode = "remote",
   signal?: AbortSignal,
 ): Promise<HostRemoteConnection> {
+  assertRemoteWorkspacesAvailable(DESKTOP_PRODUCT_CAPABILITIES);
   // 延迟加载 remote backend，避免 local 模式下因 ssh2 依赖链进入 asar 后崩溃
   const { createRemoteBackend, connectRemote, pickRemoteRuntimeEnv } =
     await import("@zcode/server/remote");

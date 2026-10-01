@@ -6,6 +6,7 @@
  */
 import { createContext, useContext, useCallback, type ReactNode } from "react";
 import type { IPlatformService, RemoteTarget } from "@zcode/shared";
+import { assertRemoteWorkspacesAvailable } from "@zcode/shared";
 
 const PlatformContext = createContext<IPlatformService | null>(null);
 
@@ -43,6 +44,7 @@ export function useConnectRemote() {
   const platform = usePlatform();
   return useCallback(
     async (options: RemoteTarget, requestId?: string) => {
+      assertRemoteWorkspacesAvailable(platform.productCapabilities);
       const result = await platform.connectRemote(options, requestId);
       if (!result.success) {
         throw new Error(result.error || "Connection failed");

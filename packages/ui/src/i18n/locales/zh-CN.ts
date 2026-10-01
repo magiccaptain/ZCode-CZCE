@@ -498,6 +498,7 @@ const zhCN: Record<string, string> = {
   "confirmDialog.projectRemoveTitle": "移除这个项目？",
   "confirmDialog.projectRemoveDescription":
     "项目“{projectName}”会从侧边栏移除，但不会删除磁盘上的文件。",
+  "remote.history.productUnavailable": "本地版本不可用",
   "bots.title": "机器人",
   "bots.description": "把外部聊天工具和 Webhook 接入 ZCode 机器人。",
   "bots.listTitle": "机器人",

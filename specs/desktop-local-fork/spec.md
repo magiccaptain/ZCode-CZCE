@@ -1,6 +1,6 @@
 # 本地 Desktop Fork 产品范围与关闭规则
 
-状态：产品范围已确认；Issue #1 更新、Issue #2 遥测、Issue #3 产品账号/订阅与 Issue #4 市场/分享执行关闭已实现并完成本机验证。其余关闭机制与验收仍为实施要求，尚未实现。
+状态：产品范围已确认；Issue #1 更新、Issue #2 遥测、Issue #3 产品账号/订阅、Issue #4 市场/分享与 Issue #5 远程工作区/手机 attachment 执行关闭已实现并完成本机验证。Desktop 专用发行链与物理清理仍为实施要求，尚未实现。
 
 本 Fork 只发布本地 Desktop 客户端，复用 ZCode Agent Runtime，保留 Skills 与 MCP，并持续集成上游核心更新。本阶段关闭 Web 产品、更新、插件商店、账号、订阅、分享、遥测、远程工作区和手机远控。先关闭产品入口与执行路径，再按依赖证据删除源码，避免破坏核心运行链。
 
@@ -43,7 +43,7 @@
 
 ## 状态所有者与接口要求
 
-Issue #1 已实现 Desktop 固定能力配置及 Main → preload → 平台适配 → UI 的只读接口。当前落实应用更新、产品遥测、产品账号/订阅与市场/分享关闭；远程/远控与发行链关闭仍是后续实施目标，不能把配置中的 false 视为相应路径已经停用。
+Issue #1 已实现 Desktop 固定能力配置及 Main → preload → 平台适配 → UI 的只读接口。当前落实应用更新、产品遥测、产品账号/订阅、市场/分享与远程/手机 attachment 关闭；Desktop 专用发行链仍是后续实施目标，不能把配置中的 false 视为相应构建路径已经停用。
 
 | 状态或事实               | 唯一所有者                                  | 读取方与规则                                                                           |
 | ------------------------ | ------------------------------------------- | -------------------------------------------------------------------------------------- |
@@ -150,3 +150,5 @@ Issue #2 的初始化、共享身份/队列边界与 no-op 契约见 [遥测关�
 Issue #3 的服务、UI 与 Main 原生执行边界见 [账号/订阅关闭规格](issue3-account.md)；本地 Provider 持久化、真实核心/Skills/MCP 与关闭专项结果见 [实施结果](issue3-results.md)。
 
 Issue #4 的服务/Host/CLI 市场、分享与 UI admission 见 [市场/分享关闭规格](issue4-marketplace-sharing.md)；同源装配、两种身份 Desktop 专项及真实核心/Skills/MCP 回归见 [实施结果](issue4-results.md)。
+
+Issue #5 的 Main/Host/Bot/V4/UI 执行 guard、旧历史保留与本地边界见 [远程关闭规格](issue5-remote.md)；两种身份的真实 Desktop 专项、同源装配和真实核心/Skills/MCP 回归见 [实施结果](issue5-results.md)。当前检出没有手机 pairing/relay owner；保留共享恢复协议，不恢复已移除模块。

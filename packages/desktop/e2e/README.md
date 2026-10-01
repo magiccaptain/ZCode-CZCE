@@ -87,3 +87,14 @@ E2E 报告与脱敏日志写入忽略的 `.e2e-artifacts/telemetry-*/`，核心�
 - 前缀 `ZCODE_MARKET_SHARE_E2E_ENV=production` 执行正式身份，否则 test。此专项观察本机 fixture/Renderer 请求，不冒充全进程全流量抓包或完整模型/Skills/MCP 执行；真实核心回归仍执行 `e2e:baseline --key-file <仓库外私有文件> --extensions --telemetry`。
 
 专项报告、build hash、截图与脱敏日志位于忽略的 `.e2e-artifacts/market-share-ui-*/`；临时数据只包含测试 fixture，不使用真实账号。当前实测 Linux x64；本 Issue 未验证安装包、Windows/macOS 或真实 MCP OAuth 浏览器授权，完整结果见 `specs/desktop-local-fork/issue4-results.md`。
+
+## Issue #5 远程执行边界专项
+
+- `pnpm exec tsx --test packages/desktop/test/remoteProductGuards.test.mjs packages/desktop/test/localHostAttachmentProductBoundary.test.ts packages/services/test/remoteProductBoundary.test.ts`：实际 Main IPC/manager 的发现、连接、旧绑定与 Bot 路由 guard；旧 Bot 设置/凭据/parentPort 副作用为零、本地候选保留；两个本地窗口 attachment registry 生命周期隔离、远程/replay 拒绝；Desktop V4 scope 不把旧 remote identity 降为同路径本地请求，其他产品未传能力时保留 replay 协议。
+- `pnpm --filter @zcode/desktop exec tsx e2e/run-remote-backend.mjs`：无模型凭据，重建实际 Agent/Main/Host/preload/Renderer，使用合法旧 SSH/WSL/Docker 历史且共享同一本地路径的隔离配置启动、退出、重启。真实 preload 和绕过 preload 的 Main 请求拒绝连接，发现为空；Main 不发送远程 Host 创建消息；绕过 Main 的 Host 请求返回原失败响应、关闭本地 replay/远程 attachment 端口，旧 history 的 identity 保留。另经真实本地 attachment 发送 Agent/Task 的序列化 EventListen（远端 identity、空白 identity、旧 remoteSessionId），仅关闭 4 个 offending port；另在同一正常 attachment 上发送 4 个 Task Promise 请求（snapshot 的远端/空白 identity、旧 remoteSessionId，以及带 MCP 的远端 resume），均明确拒绝但不关闭端口；随后本地 Task 列表与 Agent RPC 返回成功，两次正常退出 0。未知旧 pairing fixture 只证明数据未改写：当前检出没有手机配对/relay owner，不冒充真实配对服务测试。
+
+- `pnpm exec tsx packages/ui/test/productRemoteWorkspace.e2e.mjs`：无模型凭据，重新构建并实跑旧 SSH/WSL/Docker 同路径历史启动/重启；工作区菜单保留三条不可用历史，无远端向导或手机远控包装；实际打开独立 Bots 配置，并通过原平台目录选择器显式打开本地目录。远端历史原对象不改写，不自动转为本地。
+- backend 命令前缀 `ZCODE_REMOTE_E2E_ENV=production`、UI 命令前缀 `ZCODE_REMOTE_UI_E2E_ENV=production` 验证正式身份，默认 test/Preview。
+- `pnpm exec tsx --test packages/desktop/test/remoteProductAssembly.test.ts`：使用实际 Desktop owner 与公开服务装配，远端 Bot 候选/绑定拒绝、连续 facade 本地握手可用、旧 remote identity/session 与手机 facade 拒绝，Agent command resolver 为零。另用真实 ChannelServer/EventListen 覆盖 Agent/Task 远端订阅拒绝、另一端口事件/请求存活，resolver/spawn 为零；`remoteEventAdmission.test.ts` 验证默认/未知异常不吞，`taskEventAdmissionCleanup.test.ts` 验证重复上游注册失败立即释放本地 listener。`taskProductAdmissionAssembly.test.ts` 经实际公开装配/两个 ChannelServer 验证同 T 的 snapshot 拒绝不污染本地模型/关闭、MCP 准备与 resolver/spawn 为零、typed mixed batch 在 SQL/overlay/cache 变动前拒绝，以及正常本地参数兼容。
+
+报告、build hash 和脱敏日志位于忽略的 `.e2e-artifacts/remote-backend-*/` 与 `remote-ui-*/`。这些专项不验证全部网络流量、同时打开两个 GUI 窗口或真实模型/Skills/MCP 执行；两窗口所有者使用组件测试。真实核心回归仍走已有 `e2e:baseline --key-file <仓库外私有文件> --extensions --telemetry`；安装包、Windows/macOS 需分别运行。规格与本次真实证据见 `specs/desktop-local-fork/issue5-remote.md` 和 `issue5-results.md`。

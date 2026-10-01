@@ -8,7 +8,12 @@ import type {
   RemoteSessionClosedEvent,
   RemoteWorkspaceSessionEntry,
 } from "@zcode/shared";
-import { buildSshRemoteHostKey, createUuid, stripRemoteTargetSecrets } from "@zcode/shared";
+import {
+  assertRemoteWorkspacesAvailable,
+  buildSshRemoteHostKey,
+  createUuid,
+  stripRemoteTargetSecrets,
+} from "@zcode/shared";
 import type { IServiceAccessor } from "@zcode/services";
 import {
   bindRemoteWorkspaceIdentity,
@@ -652,7 +657,10 @@ export function useRemoteWorkspaceHistory({
   onWorkspaceActivated?: (target: { workspacePath: string; workspaceIdentity: string }) => void;
 }) {
   const showRemoteConnectionEntry = useRemoteConnectionEntryVisibility();
-  const canUseRemoteWorkspace = allowRemoteWorkspace && showRemoteConnectionEntry;
+  const canUseRemoteWorkspace =
+    allowRemoteWorkspace &&
+    showRemoteConnectionEntry &&
+    platform.productCapabilities?.remoteWorkspaces !== false;
   const allowRemoteWorkspaceRestore = canUseRemoteWorkspace;
   const [remoteWorkspaceSessions, setRemoteWorkspaceSessions] = useState<
     RemoteWorkspaceSessionEntry[]
@@ -753,6 +761,7 @@ export function useRemoteWorkspaceHistory({
       requestId?: string,
       context?: Parameters<IPlatformService["connectRemote"]>[2],
     ) => {
+      assertRemoteWorkspacesAvailable(platform.productCapabilities);
       const result = await platform.connectRemote(target, requestId, context);
       if (!result.success) {
         throw new Error(getErrorMessage(result.error || "Connection failed"));
@@ -862,6 +871,7 @@ export function useRemoteWorkspaceHistory({
           workspaceKey,
         });
         await reconnectRemoteWorkspaceHistoryEntry({
+          productCapabilities: platform.productCapabilities,
           sessionEntry,
           activateTabByPath,
           setReconnectingRemoteWorkspaceKeys,
@@ -966,6 +976,7 @@ export function useRemoteWorkspaceHistory({
         settings,
         tabStoreApi,
         allowRemoteWorkspaceRestore,
+        productCapabilities: platform.productCapabilities,
         unavailableWorkspacePath,
         conversationWorkspacePath,
         restoreMode: deferInactiveWorkspaceRestore ? "active-first" : "all",
@@ -983,6 +994,7 @@ export function useRemoteWorkspaceHistory({
       allowRemoteWorkspaceRestore,
       deferInactiveWorkspaceRestore,
       ensureConversationWorkspaceOnRestore,
+      platform.productCapabilities,
       services.fileService,
       tabStoreApi,
       unavailableWorkspacePath,
@@ -1300,14 +1312,15 @@ export function useRemoteWorkspaceHistory({
   }, [handleRemoteWorkspaceSessionClosed, platform]);
 
   useEffect(() => {
+    if (!canUseRemoteWorkspace) return;
     return platform.onBotRemoteWorkspaceReconnected((event) => {
       void handleBotRemoteWorkspaceReconnected(event);
     });
-  }, [handleBotRemoteWorkspaceReconnected, platform]);
+  }, [canUseRemoteWorkspace, handleBotRemoteWorkspaceReconnected, platform]);
 
   const handleRemoteWorkspaceTabsClosed = useCallback(
     (workspaceKeys: string[]) => {
-      if (workspaceKeys.length === 0) {
+      if (platform.productCapabilities?.remoteWorkspaces === false || workspaceKeys.length === 0) {
         return;
       }
 

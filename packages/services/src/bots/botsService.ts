@@ -6,6 +6,9 @@ import { dirname, join } from "node:path";
 import type { IDisposable } from "@zcode/rpc";
 import { completeNewModelSelection } from "@zcode/provider";
 import {
+  assertWorkspaceTargetAvailable,
+  isRemoteWorkspaceIdentity,
+  type RemoteProductCapabilities,
   ALL_BOT_WORKSPACES,
   generateTraceId,
   normalizeAgentProviderToZCodeAgent,
@@ -274,6 +277,7 @@ function validateBotConfig(config: BotsConfigFile, candidate: BotConfig): void {
 }
 
 interface BotsServiceDeps {
+  productCapabilities?: RemoteProductCapabilities;
   credentialService: ICredentialService;
   zcodeTaskService: IZCodeTaskService;
   broadcastService?: IBroadcastService;
@@ -2244,7 +2248,15 @@ export function createBotsService(
       return cached.value;
     }
     const workspaceByKey = new Map<string, BotWorkspaceRef>();
-    if (params.currentWorkspace) {
+    if (
+      params.currentWorkspace &&
+      !(
+        deps.productCapabilities?.remoteWorkspaces === false &&
+        params.currentWorkspace.workspaceIdentity &&
+        // 身份 key 会 trim；候选判断也须同源归一化，不能恢复带空白的旧远端。
+        isRemoteWorkspaceIdentity(params.currentWorkspace.workspaceIdentity.trim())
+      )
+    ) {
       workspaceByKey.set(
         getWorkspaceKey(
           params.currentWorkspace.workspacePath,
@@ -2256,6 +2268,8 @@ export function createBotsService(
 
     const settings = await deps.settingService?.get().catch(() => null);
     for (const entry of settings?.lastWorkspaceSession ?? []) {
+      // 旧远程声明保留在原设置里，不提供能恢复执行的 Bot 候选，也不剥离 identity。
+      if (entry.kind === "remote" && deps.productCapabilities?.remoteWorkspaces === false) continue;
       const workspace = createWorkspaceRef(
         entry.workspacePath,
         entry.kind === "remote" ? entry.workspaceIdentity : undefined,
@@ -2278,6 +2292,13 @@ export function createBotsService(
     context: Pick<BotContextState, "workspacePath" | "workspaceIdentity" | "workspaceId">,
     workspaces: readonly BotWorkspaceRef[],
   ): BotWorkspaceRef | null {
+    // 旧 context 的 workspaceId 可能仍是 path；identity 按原 key trim 后识别，不能降级到同路径本地候选。
+    if (
+      deps.productCapabilities?.remoteWorkspaces === false &&
+      context.workspaceIdentity &&
+      isRemoteWorkspaceIdentity(context.workspaceIdentity.trim())
+    )
+      return null;
     const currentWorkspaceKey = getWorkspaceKey(context.workspacePath, context.workspaceIdentity);
     const exactWorkspace = workspaces.find(
       (workspace) =>
@@ -5370,6 +5391,8 @@ export function createBotsService(
       return { ...(await adapter.test(bot)), provider: bot.provider };
     },
     async createBindCode(params: BotCreateBindCodeParams): Promise<BotBindCodeResult> {
+      for (const workspaceIdentity of params.allowedWorkspaces ?? [])
+        assertWorkspaceTargetAvailable(deps.productCapabilities, { workspaceIdentity });
       const config = await repo.readConfig();
       const botId = params.botId ?? params.botId;
       if (!botId) {
@@ -5512,6 +5535,7 @@ export function createBotsService(
               );
             if (!workspace)
               return [createOutbound(message.actor, msg(auth.locale, "workspaceMissing"))];
+            assertWorkspaceTargetAvailable(deps.productCapabilities, workspace);
             const context = {
               ...auth.context,
               workspacePath: workspace.workspacePath,
