@@ -22,7 +22,7 @@ function resolvePlatformScopedBundledAgentRoots(moduleDir?: string): Array<strin
   return [
     resolvePath(process.cwd(), "bundled-agents", platformKey),
     resolvePath(process.cwd(), "packages", "desktop", "bundled-agents", platformKey),
-    // dev:web 会用 pnpm --filter @zcode/server dev 启动，cwd 落在 packages/server。
+    // 保留其他宿主 cwd 的路径 fallback；本地 Fork 仅发布 Desktop。
     // ZCode Agent 资源可能位于桌面包或仓库根的 bundled-agents/<platform>。
     // 这里统一补齐仓库内所有平台化目录候选，desktop/web/server 共享一套解析链路。
     resolvePath(process.cwd(), "..", "desktop", "bundled-agents", platformKey),

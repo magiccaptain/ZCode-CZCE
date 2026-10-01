@@ -108,9 +108,7 @@ Run `pnpm typecheck`, `pnpm lint`, `pnpm architecture:check --changed` and `node
 | Directory                                            | Responsibility                                                                          |
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | `packages/desktop`                                   | Electron Main, Host, Renderer, and desktop packaging                                    |
-| `packages/web`                                       | Disabled Web product source (pending reference-based cleanup)                           |
 | `packages/server`                                    | Retained library references and disabled distribution source                            |
-| `packages/zcode-server-cli`                          | Disabled standalone server distribution source                                          |
 | `packages/ui`                                        | Shared React components, hooks, and Zustand state                                       |
 | `packages/services`                                  | Business services and persistence                                                       |
 | `packages/shared`, `packages/rpc`, `packages/client` | Shared protocols and types, RPC framework, and Agent client SDK                         |

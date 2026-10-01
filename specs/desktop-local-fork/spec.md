@@ -1,6 +1,6 @@
 # 本地 Desktop Fork 产品范围与关闭规则
 
-状态：产品范围已确认；Issue #1 更新、Issue #2 遥测、Issue #3 产品账号/订阅、Issue #4 市场/分享、Issue #5 远程工作区/手机 attachment 执行关闭及 Issue #6 Desktop 专用发行链已实现并完成本机验证。按真实引用的物理清理仍为 Issue #7 实施要求，尚未实现。
+状态：Issue #1–#6 的更新、遥测、产品账号/订阅、市场/分享、远程/手机 attachment 执行关闭及 Desktop 专用发行链已实现。Issue #7 已完成无消费者产品闭包物理清理与固定上游回归流程，保留仍被调用的核心/兼容库。Linux x64 的实际结果与未测范围分别记录；不是全平台或所有保留能力的完整验证。
 
 本 Fork 只发布本地 Desktop 客户端，复用 ZCode Agent Runtime，保留 Skills 与 MCP，并持续集成上游核心更新。本阶段关闭 Web 产品、更新、插件商店、账号、订阅、分享、遥测、远程工作区和手机远控。先关闭产品入口与执行路径，再按依赖证据删除源码，避免破坏核心运行链。
 
@@ -38,7 +38,7 @@
 - 关闭插件商店不删除插件 manifest、已安装本地资源的加载机制，以及承载 Skills、MCP 的必要运行资源。剩余管理入口不得继续跳转到商店或自动请求市场。
 - 关闭遥测仍保留现有本地日志、诊断和会话存储；日志不得经遥测路径上传。遥测关闭同时覆盖正常运行、退出 flush、崩溃路径和 Agent 子进程环境。
 - 已有远程历史、账号配置或遥测队列不能触发后台恢复和上传；本阶段不自动删除用户数据。持久化迁移另行设计。
-- 第一阶段保留核心依赖目录与协议兼容边界；不依据文件名批量删除 remote、account、plugin 或 telemetry 代码。
+- 清理后继续保留完整核心依赖目录与协议兼容边界，以及仍被 Desktop 引用的 remote、account、plugin 或 telemetry 契约/guard；不按文件名删除。
 - 自动化、工作流、浏览器使用、Computer Use 等其他能力本轮未新增关闭决定，不自动扩大裁剪范围。
 
 ## 状态所有者与接口要求
@@ -88,7 +88,7 @@ sequenceDiagram
 
 ## 当前源码证据与实施入口
 
-下表是当前可验证的阅读入口，不代表每项关闭已经具备开关，也不代表调用链已经完整审计。
+下表是当前保留的实现阅读入口；关闭执行证据见各 issue 结果，不把静态阅读入口当作 E2E。
 
 | 关注点             | 当前文件                                                                                                                                          | 实施核查                                          |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
@@ -104,11 +104,11 @@ sequenceDiagram
 | 本地 Agent 打包    | `packages/desktop/scripts/prepare-agent-node-bundle.mjs`、`scripts/build-desktop-agent-cli.mjs`                                                   | bundle 与 Skills/MCP 资源保持完整                 |
 | 远程资源准备       | `packages/desktop/scripts/prepare-runtime-assets.mjs`                                                                                             | 将关闭规则落实到构建链，不能只关闭运行入口        |
 
-`packages/desktop/package.json` 当前仍依赖 `@zcode/server`，Desktop 源码仍导入其远程实现。关闭远程工作区后，需确认所有剩余调用与构建引用再决定是否删除该包。核心仍依赖共享协议、Provider、适配器、工作流等，不在本阶段批量删除。
+`@zcode/server` 的 remote 子入口仍有 Desktop Host/Main 静态和动态消费者，故保留；无消费者的 HTTP/stdio 产品启动闭包与 Web/独立 server-cli 产品包已物理删除。`stdioServices.ts` 与 stdio/remote 契约继续用于兼容边界和同源装配验证。根 workspace 通配符自动发现剩余 31 个项目，typecheck、exports、knip、架构策略、lockfile 和现行文档同步收敛。核心继续依赖共享协议、Provider、适配器、工作流、插件 loader 与必要资产，详见 [清理依据](issue7-cleanup.md)。
 
 ## 验收场景
 
-以下为产品整体规划场景。更新关闭前的本地核心基线已执行，结果见 `baseline-results.md`；这不代表关闭能力后的整体场景已经通过，其他场景仍需实际执行。
+以下为产品整体验收规则。变更前基线见 `baseline-results.md`；关闭后的 Linux 核心、Skills/MCP、专项及安装包冒烟已在各 issue 实际执行。包内完整生命周期/Skills/MCP、真实 MCP OAuth、Windows/macOS、全流量捕获及真正未来上游合入仍未实测，不能由现有结果推定通过。
 
 | 场景             | 前置条件与动作                                                       | 必须断言                                                                            | 证据                                  |
 | ---------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------- |
@@ -153,4 +153,6 @@ Issue #4 的服务/Host/CLI 市场、分享与 UI admission 见 [市场/分享�
 
 Issue #5 的 Main/Host/Bot/V4/UI 执行 guard、旧历史保留与本地边界见 [远程关闭规格](issue5-remote.md)；两种身份的真实 Desktop 专项、同源装配和真实核心/Skills/MCP 回归见 [实施结果](issue5-results.md)。当前检出没有手机 pairing/relay owner；保留共享恢复协议，不恢复已移除模块。
 
-Issue #6 的默认 Desktop 构建、旧发行入口错误、完整 Agent/资产所有者与安装包验收见 [构建闭包规格](issue6-build.md)；干净输出构建、production AppImage、包内关闭/模型与开发核心/Skills/MCP 的真实回归见 [实施结果](issue6-results.md)。整包、workspace/lockfile 与动态依赖的物理清理留给 Issue #7；不能因产品路径关闭就按包名删除库引用。
+Issue #6 的默认 Desktop 构建、旧发行入口错误、完整 Agent/资产所有者与安装包验收见 [构建闭包规格](issue6-build.md)；该阶段真实回归见 [实施结果](issue6-results.md)。
+
+Issue #7 的最终保留/删除闭包、工具报告限制与本机验证见 [清理依据](issue7-cleanup.md) 和 [实施结果](issue7-results.md)。固定 SHA、独立分支、配套变更审查与真实回归门禁见 [上游同步流程](upstream-regression.md)；基线演练不等同于合入未来版本。

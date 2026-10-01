@@ -23,11 +23,7 @@ test("root and package manifests expose only Desktop product builds", async () =
     assert.equal(scripts[name], undefined, name);
   const desktop = await json("packages/desktop/package.json");
   assert.equal(desktop.scripts["prepare:remote-assets"], undefined);
-  for (const path of [
-    "packages/web/package.json",
-    "packages/server/package.json",
-    "packages/zcode-server-cli/package.json",
-  ]) {
+  for (const path of ["packages/server/package.json"]) {
     const manifest = await json(path);
     for (const name of ["dev", "build", "build:remote", "stage"])
       assert.equal(manifest.scripts[name], undefined, `${path}:${name}`);
@@ -152,11 +148,8 @@ test("Agent build cannot reuse stale outputs through old bootstrap env", async (
     assert.ok(prepare.includes(resource), resource);
 });
 
-test("retired server remote builder and server-cli stage reject direct execution", () => {
-  for (const script of [
-    "packages/server/build-remote.ts",
-    "packages/zcode-server-cli/src/packaging/stageCli.ts",
-  ]) {
+test("retained server remote builder rejects direct execution", () => {
+  for (const script of ["packages/server/build-remote.ts"]) {
     const result = spawnSync(process.execPath, ["--import", "tsx", script, "--help"], {
       cwd: root,
       encoding: "utf8",

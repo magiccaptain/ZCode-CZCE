@@ -5,8 +5,8 @@ import type { StdioStream } from "./backend.js";
  * Wrap a StdioStream (from IRemoteBackend.exec()) as an ISocket
  * for use with SocketProtocol → ChannelClient → RemoteServiceAccess.
  *
- * Follows the same pattern as wrapWebSocket in packages/server/src/http.ts
- * and wrapBrowserWebSocket in packages/client/src/websocket.ts.
+ * Follows the same ISocket contract as wrapBrowserWebSocket in
+ * packages/client/src/websocket.ts; the standalone HTTP product is removed.
  */
 export function wrapStdioStream(stream: StdioStream): ISocket {
   const onData = new Emitter<VSBuffer>();

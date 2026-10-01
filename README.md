@@ -114,9 +114,7 @@ sudo xattr -rd com.apple.quarantine /Applications/ZCode.app
 | 目录                                                 | 职责                                       |
 | ---------------------------------------------------- | ------------------------------------------ |
 | `packages/desktop`                                   | Electron Main、Host、Renderer 与桌面打包   |
-| `packages/web`                                       | 已关闭的 Web 产品源码（待引用清理）        |
 | `packages/server`                                    | 保留库引用及已关闭发行源码                 |
-| `packages/zcode-server-cli`                          | 已关闭的独立 Server 发行源码               |
 | `packages/ui`                                        | 共享 React 组件、hooks 与 Zustand 状态     |
 | `packages/services`                                  | 业务服务与持久化                           |
 | `packages/shared`、`packages/rpc`、`packages/client` | 共享协议和类型、RPC 框架、Agent 客户端 SDK |

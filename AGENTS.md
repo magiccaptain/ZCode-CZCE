@@ -26,7 +26,7 @@
 测试入口以目标包当前的 `package.json` 和实际测试文件为准，不假定存在统一的单测或 E2E 命令。
 
 - `packages/desktop`：Electron main、host、renderer。
-- `packages/web`、`packages/server`：已关闭发行的产品源码及保留库引用；默认构建只发布 Desktop，整包删除按引用证据另行清理。
+- `packages/server`：Desktop 仍引用的 remote 库与兼容边界；无独立产品发行。Web 与独立 server-cli 产品包已按零消费者闭包删除。
 - `packages/ui`：共享 React 组件、hooks 与 Zustand store。
 - `packages/services`：业务服务；`packages/rpc`：RPC 框架。
 - `packages/shared`：共享协议与类型；`packages/client`：Agent 客户端 SDK。

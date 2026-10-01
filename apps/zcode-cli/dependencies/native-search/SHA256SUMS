@@ -2,8 +2,6 @@
 d993d72530749fa777339a7546f03338499abf235e2147d4adcd086641c6376f  bfs-v4.1.1-1/bfs-v4.1.1-1-x86_64-apple-darwin.tar.gz
 dabdde935a02f89dd0c48c5cd0ec756a87d300fd5ace85a78e6a9eb51d771118  bfs-v4.1.1-2/bfs-v4.1.1-2-aarch64-unknown-linux-gnu.tar.gz
 9adf5759000021dd8fcd99670461cc43863f9172fb16f2f9a3e49c700311e7a0  bfs-v4.1.1-2/bfs-v4.1.1-2-x86_64-unknown-linux-gnu.tar.gz
-de44338ca53677968bdd7403ddc1cf9c735e708f7b63e3b34367f9411010a7db  ripgrep-v13.0.0-10/ripgrep-v13.0.0-10-aarch64-apple-darwin.tar.gz
-3b501c05ff9b1d24ae8897dd1c6b5bf842fd12a6f7114264407ac42bc222b25b  ripgrep-v13.0.0-10/ripgrep-v13.0.0-10-x86_64-apple-darwin.tar.gz
 84ff9b227b9aad651be0ac4cf7802a190015bfba3dfa6b015cc7aa89dd8c5c2b  ripgrep-v14.1.1-1/ripgrep-v14.1.1-1-aarch64-apple-darwin.tar.gz
 88660d96f822d2e0329e254031068e82028f9c13efcec9b2d78c5a19d3f9ac47  ripgrep-v14.1.1-1/ripgrep-v14.1.1-1-aarch64-pc-windows-msvc.zip
 98c0371366a9db920ed6c196083e8030511055e5f128b3bde2ca56bbddf85b9a  ripgrep-v14.1.1-1/ripgrep-v14.1.1-1-aarch64-unknown-linux-musl.tar.gz

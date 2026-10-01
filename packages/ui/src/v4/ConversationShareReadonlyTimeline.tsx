@@ -1,7 +1,6 @@
-/* oxlint-disable eslint(max-lines) -- Share 与 Desktop 共用的只读 Row/turn presentation 需要保持在同一安全边界。
- * 安全边界约束：本文件被匿名公开分享页（packages/web/src/share）直接引用，新增依赖必须考虑
- * 公开页 bundle 体积与无 Desktop 宿主（window.zcode / PlatformProvider / tab store）的运行环境；
- * Desktop 专属能力（如 open-with 子树）一律由消费方经组件注入，不得静态 import。 */
+/* oxlint-disable eslint(max-lines) -- Desktop 历史/导入的只读 Row/turn presentation。
+ * Web 分享产品已删除；本地只读展示仍使用此模块。
+ * Desktop 专属能力（如 open-with 子树）仍由消费方经组件注入，避免展示层耦合原生宿主。 */
 import {
   createContext,
   Fragment,
