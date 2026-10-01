@@ -1,5 +1,17 @@
 # Desktop 核心 E2E 基线
 
+## Issue #6 安装包综合关闭冒烟
+
+先从当前源码执行 `ZCODE_ENV=production pnpm build` 并生成本机 AppImage（Linux：`ZCODE_ENV=production ZCODE_TARGET_OS=linux ZCODE_TARGET_ARCH=x64 pnpm --filter @zcode/desktop exec electron-builder --config electron-builder.config.js --linux AppImage --x64`）。默认准备不再需要 remote skip 环境。
+
+```sh
+LANG=en_US.UTF-8 APPIMAGE_EXTRACT_AND_RUN=1 pnpm --filter @zcode/desktop exec tsx e2e/run-build.mjs --executable /absolute/path/to/current/ZCode.AppImage
+```
+
+该入口不重建或替换安装包资产，不需凭据。真实启动/退出/重启旧账号、市场、share 与 SSH/WSL/Docker 历史目录，验证偏好/设置入口、preload 拒绝、Main 旧 OAuth/支付/分享深链、旧文件保留、本机市场请求和 Chromium netlog。安装包不提供 Host RPC/IPC Promise 绕过探针，这些执行边界仍由已有组件/开发专项覆盖；不声称全进程抓包或真实模型/Skills/MCP 执行。报告位于 `.e2e-artifacts/build-*/`。英文交互需英文系统语言；首次运行在中文系统上发生 Skip 定位失败，改测试进程 LANG 后实跑通过，不更改生产语言行为。
+
+闭包组件测试：`node --test packages/desktop/test/desktopBuildClosure.test.mjs`。真实模型与更新/遥测包内冒烟、核心 Skills/MCP 回归使用下文已有 runner 和仓库外私有 key-file，不能以综合关闭冒烟替代它们。
+
 规格：[`specs/desktop-local-fork/e2e-baseline.md`](../../../specs/desktop-local-fork/e2e-baseline.md)。本入口验证本地核心行为，可用于变更前后回归；测试本身不修改生产实现。
 
 ## 运行

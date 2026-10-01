@@ -36,6 +36,11 @@ import { resolveIntranetDepsBaseUrl } from "./intranetDefaults.mjs";
 
 export { computeComponentSourceSha256, packComponentSourceAsArchive };
 
+// 本地 Fork 禁止旧入口恢复远端部署资源；导入的归档辅助函数保留至引用清理。
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  throw new Error("Desktop-only: remote deployment assets are unavailable");
+}
+
 const require = createRequire(import.meta.url);
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(scriptDir, "..");

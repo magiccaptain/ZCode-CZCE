@@ -10,8 +10,6 @@
     "./main": "./src/main.ts"
   },
   "scripts": {
-    "build": "tsup",
-    "stage": "pnpm run build && tsx src/packaging/stageCli.ts",
     "lint": "oxlint src"
   },
   "dependencies": {

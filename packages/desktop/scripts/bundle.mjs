@@ -732,7 +732,7 @@ async function main() {
   }
 
   if (!skipBuild) {
-    run(pnpmCommand, ["build"], buildEnv);
+    run(pnpmCommand, ["build:no-runtime-assets"], buildEnv);
   }
 
   await runTimedAsync("bundle:electron-builder", () =>

@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import { access } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,14 +6,10 @@ import { runCommand } from "./spawn-command.mjs";
 
 // adapters tsc 在内存受限机器上会 OOM（exit 134），给整条构建链路提高堆上限。
 process.env.NODE_OPTIONS = `${process.env.NODE_OPTIONS ? process.env.NODE_OPTIONS + " " : ""}--max-old-space-size=8192`;
-import {
-  stageBuiltinProviderConfig,
-  resolveBuiltinProviderBuildEnvironment,
-} from "./builtin-provider-config.mjs";
+import { resolveBuiltinProviderBuildEnvironment } from "./builtin-provider-config.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const useTurboBuild = process.env.ZCODE_DESKTOP_AGENT_BUILD_MODE === "turbo";
-const useBootstrapWithRemoteBuild = process.env.ZCODE_BOOTSTRAP_WITH_REMOTE === "1";
 const pnpmRunEnv = {
   ...process.env,
   ZCODE_ENV: await resolveBuiltinProviderBuildEnvironment({ root: repoRoot }),
@@ -23,20 +18,14 @@ const pnpmRunEnv = {
   // 自动 install 无法解析根 workspace 包，导致 dev:desktop:test 和 E2E onPrepare 失败。
   PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
 };
-// 桌面 Agent 构建有普通 pnpm 和 bootstrap:with-remote 直跑 tsc 两条路径。
-// 过去两条路径分别维护依赖顺序，新增 workspace 依赖时只更新了 bootstrap 依赖，
-// 干净 CI 中该依赖的 dist 尚不存在，bootstrap 会因无法解析类型入口而失败。
-// 两条路径统一从这一份有序清单派生，避免后续新增 workspace 依赖时再次漂移。
+// Desktop Agent 使用明确的完整依赖顺序，不递归触发 Web/server 产品构建。
 const cliWorkspaceBuilds = [
   { packageName: "@zcode/shared-types", packageDir: "shared-types" },
   { packageName: "@zcode/contracts", packageDir: "contracts" },
-  // dynamic-workflow 的 tsc 构建依赖 gitignored 的 libs.generated.ts，
-  // 而 bare-tsc 路径（runBootstrapWithRemoteBuild）不会执行 package build script，
-  // 所以需要先跑生成脚本；必须排在 @zcode/core 之前，core 依赖 dynamic-workflow。
+  // dynamic-workflow 的 build 会生成 libs.generated.ts；core 依赖它，必须先构建。
   {
     packageName: "@zcode/dynamic-workflow",
     packageDir: "dynamic-workflow",
-    prepareScript: "scripts/generate-libs.mjs",
   },
   // dynamic-workflow-runtime 的类型入口是 dist/index.d.ts，必须先于 bootstrap 构建。
   { packageName: "@zcode/dynamic-workflow-runtime", packageDir: "dynamic-workflow-runtime" },
@@ -96,50 +85,6 @@ function stageDevAgentBundle() {
     repoRoot,
     platformKey: `${process.platform}-${process.arch}`,
   });
-}
-
-async function runBootstrapWithRemoteBuild() {
-  if (existsSync(resolve(repoRoot, "apps/zcode-cli/packages/cli/dist/zcode.cjs"))) {
-    await stageBuiltinProviderConfig({
-      root: repoRoot,
-      env: pnpmRunEnv,
-      directory: resolve(repoRoot, "apps/zcode-cli/packages/cli/dist/provider"),
-    });
-    console.log("[build-desktop-agent-cli] reuse existing zcode-cli desktop agent bundle");
-    return;
-  }
-
-  for (const { packageDir, prepareScript } of cliWorkspaceBuilds) {
-    // bootstrap:with-remote 会在 remote assets 阶段构建 agent bundle。
-    // 通过 pnpm 逐包执行 tsc 时会再走 shim/env node 层，低内存本地环境里容易长时间卡住。
-    // 这里只有 bootstrap 专用环境变量生效，直接复用当前 Node 启动 TypeScript CLI。
-    // bare tsc 绕过 package build script，所以带 prepareScript 的包（dynamic-workflow）
-    // 必须先手动跑生成脚本补齐 gitignored 的 libs.generated.ts，否则 tsc 因缺文件报错。
-    if (prepareScript) {
-      runCommand(process.execPath, [prepareScript], {
-        cwd: `apps/zcode-cli/packages/${packageDir}`,
-        env: pnpmRunEnv,
-        stdio: "inherit",
-      });
-    }
-    runCommand(process.execPath, ["../../node_modules/typescript/bin/tsc"], {
-      cwd: `apps/zcode-cli/packages/${packageDir}`,
-      env: pnpmRunEnv,
-      stdio: "inherit",
-    });
-  }
-
-  runCommand(process.execPath, ["scripts/build.mjs", "--desktop-agent"], {
-    cwd: "apps/zcode-cli/packages/cli",
-    env: pnpmRunEnv,
-    stdio: "inherit",
-  });
-}
-
-if (useBootstrapWithRemoteBuild) {
-  await runBootstrapWithRemoteBuild();
-  stageDevAgentBundle();
-  process.exit(0);
 }
 
 if (!useTurboBuild) {

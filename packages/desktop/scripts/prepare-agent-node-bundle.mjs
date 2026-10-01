@@ -9,7 +9,7 @@
 // - 单平台体积从 ~180MB 降到 ~16MB，且同一份 JS 跨平台通用；
 // - app-server 命令路径不会加载 @zcode/tui，所以这里天然不打包 TUI。
 //
-// 远端（SSH/WSL/Docker）没有 Electron，仍走 prepare:remote-assets 的原生二进制，互不影响。
+// 本地 Desktop 不准备远端 Node/Agent 部署资源。
 
 import { cpSync, existsSync, mkdirSync } from "node:fs";
 import { access, cp, mkdir } from "node:fs/promises";
@@ -30,7 +30,6 @@ const pnpmRunEnv = {
   // 子 workspace 不能解析根 workspace 的 @zcode/shared，Docker/web app 打包会因此卡在插件 runtime 构建。
   PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
 };
-const BROWSER_USE_PLUGIN_PACKAGE_NAME = "@zcode/browser-use-plugin";
 
 // 平台目录命名：darwin/win32/linux + x64/arm64，
 // 支持 ZCODE_TARGET_OS / ZCODE_TARGET_ARCH 覆盖（交叉打包时由 CI 注入）。
@@ -153,7 +152,6 @@ function shouldCopyOfficialPluginAsset(sourcePath) {
   const name = basename(sourcePath);
   return !excludedOfficialPluginAssetNames.has(name) && !name.endsWith(".pyc");
 }
-const isBootstrapWithRemote = process.env.ZCODE_BOOTSTRAP_WITH_REMOTE === "1";
 
 function buildCliBundle() {
   console.log("[prepare:agent-bundle] building zcode-cli app-server bundle ...");
@@ -173,12 +171,6 @@ function buildOfficialPluginRuntimes() {
   for (const plugin of officialPluginPackages) {
     if (!plugin.requiresRuntime) continue;
     console.log(`[prepare:agent-bundle] building ${plugin.packageName} runtime ...`);
-    if (isBootstrapWithRemote) {
-      buildOfficialPluginRuntimeForBootstrap(plugin);
-      assertOfficialPluginRuntime(plugin);
-      continue;
-    }
-
     runCommand(
       "pnpm",
       ["--dir", resolve(repoRoot, "apps/zcode-cli"), "--filter", plugin.packageName, "build"],
@@ -189,33 +181,6 @@ function buildOfficialPluginRuntimes() {
     );
     assertOfficialPluginRuntime(plugin);
   }
-}
-
-function buildOfficialPluginRuntimeForBootstrap(plugin) {
-  const pluginRoot = resolve(repoRoot, plugin.relativePath);
-  const hasCompleteRuntime = plugin.requiredRuntimePaths.every((relativePath) =>
-    existsSync(resolve(pluginRoot, ...relativePath.split("/"))),
-  );
-  if (plugin.packageName !== BROWSER_USE_PLUGIN_PACKAGE_NAME && hasCompleteRuntime) {
-    console.log(
-      `[prepare:agent-bundle] reuse existing official plugin runtime: ${plugin.packageName}`,
-    );
-    return;
-  }
-
-  // bootstrap:with-remote 会连续构建 remote assets 和桌面 agent bundle。
-  // 通过 pnpm/filter 进入插件 build 时，tsc shim 在本地低内存环境中容易被 SIGKILL；
-  // 这里仅在 bootstrap 开关下用当前 Node 直接执行等价 tsc + build-mcp，不改变插件自身 build 脚本。
-  // browser-use 的 server 与 browser-client 是同一发布对；即使旧 server.js 存在也必须重建，
-  // 否则会把旧 server 与当前 client（或缺失 client）一起 stage 到桌面安装包。
-  runCommand(process.execPath, ["../../node_modules/typescript/bin/tsc"], {
-    cwd: pluginRoot,
-    env: process.env,
-  });
-  runCommand(process.execPath, [plugin.runtimeBuildScript], {
-    cwd: pluginRoot,
-    env: process.env,
-  });
 }
 
 function assertOfficialPluginRuntime(plugin) {

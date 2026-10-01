@@ -213,6 +213,10 @@ function parseTarget(argv: readonly string[]): ServerTarget {
 }
 
 async function main(): Promise<void> {
+  // 本地 Fork 停止独立 server 发行；旧 stage 入口不能下载 Node 或组装产品资产。
+  if (resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {
+    throw new Error("Desktop-only: standalone server distribution is unavailable");
+  }
   const argv = process.argv.slice(2);
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
   const repoRoot = await findRepoRoot(packageRoot);

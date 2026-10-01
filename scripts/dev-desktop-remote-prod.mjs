@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { posix, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -50,27 +49,8 @@ export function resolvePnpmCommand(platform = process.platform) {
 }
 
 export function runDesktopRemoteProdDev() {
-  const repoRoot = resolve(import.meta.dirname, "..");
-  const child = spawn(resolvePnpmCommand(), ["--filter", "@zcode/desktop", "dev"], {
-    cwd: repoRoot,
-    stdio: "inherit",
-    env: buildDesktopRemoteProdEnv(),
-    windowsHide: true,
-  });
-
-  child.on("close", (code, signal) => {
-    if (signal) {
-      process.kill(process.pid, signal);
-      return;
-    }
-
-    process.exit(code ?? 0);
-  });
-
-  child.on("error", (error) => {
-    console.error("[dev:desktop:remote-prod] failed to start pnpm:", error);
-    process.exit(1);
-  });
+  // 关闭执行而非仅删除根命令，防止旧脚本重新打开远端 CDN 调试链。
+  throw new Error("Desktop-only: remote workspace development is unavailable");
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
