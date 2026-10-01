@@ -9,7 +9,7 @@
 - Main 和 preload 从同一 Desktop 配置源读取，preload 暴露只读视图，Desktop 平台适配验证后通过 `IPlatformService.productCapabilities` 提供 UI。UI 使用现有平台 hook 读取，不新增 Zustand 状态或可变配置副本。
 - Host/Agent 没有应用更新执行职责，本 PR 不新增跨 Agent 协议；后续能力接入应沿既有服务/启动适配传递同源规则。会话、CommandInbox、owner/lease、workspace identity 与两种 delivery 语义均保持原所有者。
 - Web 平台尚未接入本地 Fork 配置，保留其既有行为。Desktop 必须显式携带配置，缺失或非法时不得默认启用。契约使用示例为现有 `createDesktopPlatform` 返回的 `IPlatformService`：`productCapabilities: Object.freeze(productCapabilitiesSchema.parse(preloadView))`，UI 经 `usePlatform()` 读取；`preloadView` 是固定配置的序列化视图。
-- `appUpdates=false` 独立于 production/preview、打包状态、服务环境、用户设置和开发更新开关。在任何更新网络请求、轮询、下载、退出安装、强制升级和历史恢复之前生效。
+- `appUpdates=false` 独立于 production/preview、打包状态、服务环境、用户设置和开发更新开关。在任何更新器实例构造、更新网络请求、轮询、下载、退出安装、强制升级和历史恢复之前生效。模块加载也不得读取 SDK 的惰性 `autoUpdater` getter；开发入口的初始化回归见 [开发启动规格](dev-startup.md)。
 - 更新状态读取返回现有 `{kind: 'idle', enabled: false}`，偏好读取返回 false。检查、下载、取消、安装、跳过、偏好写入、打开更新窗口与版本说明确认使用现有 Promise reject 契约，错误包含固定 `APP_UPDATES_UNAVAILABLE`。旧 fire-and-forget 安装请求只记录拒绝，不退出应用。强制升级守卫返回不阻断，强制更新操作报告 error。
 - 不读取或清理待安装历史来恢复更新，不删除既有用户数据。更新 publish 配置禁用，不生成自动更新 feed；安装包、签名、运行资源继续保留。
 
@@ -22,7 +22,7 @@ sequenceDiagram
     participant B as preload / 平台适配
     participant U as UI
     P->>M: 启动前读取 appUpdates=false
-    M->>M: 关闭退出安装，注册明确拒绝的旧 IPC
+    M->>M: 不创建更新器及退出安装监听，注册明确拒绝的旧 IPC
     M->>M: 不启动轮询、恢复、下载或强制升级请求
     P->>B: 同源不可变能力视图
     B->>U: IPlatformService 的派生视图

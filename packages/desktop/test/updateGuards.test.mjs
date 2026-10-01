@@ -37,7 +37,7 @@ await build({
         builder.onLoad({ filter: /.*/, namespace: "test-port" }, ({ path }) => {
           const ports = {
             electron: `export const app={isPackaged:true,commandLine:{hasSwitch:()=>true,getSwitchValue:()=> 'debug-update'}}; export const BrowserWindow={}; export const Menu={}; export const ipcMain=globalThis.__guardPorts.ipc;`,
-            "electron-updater": `const updater=globalThis.__guardPorts.updater; export default {autoUpdater:updater}; export class CancellationToken {}`,
+            "electron-updater": `export default {get autoUpdater(){const ports=globalThis.__guardPorts; ports.updaterReads++; if(ports.rejectUpdaterAccess) throw new Error('App version is not a valid semver version: "0.0"'); return ports.updater;}}; export class CancellationToken {}`,
             "./logger.js": `export const logger={info(){},warn(){},error(){}};`,
             "./manifestUpdateProvider.js": `export class ManifestUpdateProvider {} export const getElectronReleasePlatform=()=> 'linux-x64';`,
             "./forceUpdatePrompt.js": `export function showForceUpdatePrompt(){throw Error('unexpected native prompt');}`,
@@ -52,6 +52,8 @@ const handles = new Map();
 const events = new Map();
 const calls = [];
 globalThis.__guardPorts = {
+  updaterReads: 0,
+  rejectUpdaterAccess: false,
   ipc: {
     handle: (channel, handler) => handles.set(channel, handler),
     on: (channel, handler) => events.set(channel, handler),
@@ -70,6 +72,20 @@ globalThis.__guardPorts = {
   },
 };
 const guards = await import(pathToFileURL(outfile).href);
+
+// SDK 的真实属性是会构造实例的 getter；普通字段 stub 会漏掉模块加载阶段的版本校验崩溃。
+test("disabled update module loads without constructing an updater for an invalid dev version", async () => {
+  globalThis.__guardPorts.rejectUpdaterAccess = true;
+  try {
+    const freshImport = import(`${pathToFileURL(outfile).href}?invalid-dev-version`);
+    await assert.doesNotReject(freshImport);
+    const freshGuards = await freshImport;
+    assert.deepEqual(freshGuards.getAutoUpdaterState(), { kind: "idle", enabled: false });
+    assert.equal(globalThis.__guardPorts.updaterReads, 0);
+  } finally {
+    globalThis.__guardPorts.rejectUpdaterAccess = false;
+  }
+});
 
 test("disabled update rules precede settings, native calls, debug flags and force-update fetch", async () => {
   let settingsReads = 0;
@@ -122,7 +138,8 @@ test("disabled update rules precede settings, native calls, debug flags and forc
   assert.equal(remoteReads, 0);
   assert.equal(settingsReads, 0);
   assert.equal(settingsWrites, 0);
-  assert.equal(globalThis.__guardPorts.updater.autoInstallOnAppQuit, false);
+  assert.equal(globalThis.__guardPorts.updaterReads, 0);
+  assert.equal(globalThis.__guardPorts.updater.autoInstallOnAppQuit, true);
   assert.deepEqual(calls, []);
 });
 

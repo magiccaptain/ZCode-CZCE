@@ -57,7 +57,7 @@ key 文件只包含 DeepSeek API key，放在仓库外的私有目录，文件�
 
 - `pnpm --filter @zcode/desktop test:product`：固定能力与真实更新 guard 的单元测试，原生端口隔离。
 - `pnpm exec tsx --test packages/ui/test/productUpdateVisibility.test.ts`：UI 产品规则优先于发布身份。
-- `pnpm --filter @zcode/desktop e2e:updates`：分别重建 production/preview，覆盖干净目录、旧配置与缓存、8 类实际更新请求、原生菜单、设置及正常退出。启动前 spy 观察更新器和强制升级调用来源；其他产品配置请求不计为更新请求。
+- `pnpm --filter @zcode/desktop e2e:updates`：分别重建 production/preview，覆盖干净目录、旧配置与缓存、8 类实际更新请求、原生菜单、设置及正常退出。启动前探针通过 SDK 构造函数的 `app.getVersion()` 调用栈阻止并记录更新器初始化，首次启动与历史重启均为零；探针不主动创建 SDK 实例。另观察强制升级调用来源，其他产品配置请求不计为更新请求。禁用模块加载的无效开发版本回归在 `test/updateGuards.test.mjs`，真实 `mise run dev` 验收边界见 [`dev-startup.md`](../../../specs/desktop-local-fork/dev-startup.md)。
 - 核心基线追加 `--extensions`：原生 `.zcode/cli/config.json` / 工作区 `.zcode/config.json` 配置真实 stdio 与带测试鉴权头的 HTTP MCP；用户级/工作区级 Skill 通过 Skill 工具加载。在独立会话核验精确回复和持久化工具输出，核心会话仍检查原来的 9 条输入。
 - `e2e:updates --executable /absolute/path/to/packaged/executable`：启动实际本机产物，不替换包内 Provider 资源。使用 Chromium netlog 核验无更新 manifest / 陷阱 feed 请求；原始 netlog 仅留在私有测试目录，报告只记录事件数。
 

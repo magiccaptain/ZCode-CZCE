@@ -103,26 +103,28 @@ try {
           );
         }
       }
-      // 在 Main 加载前观察真实更新器和 Electron net，保留其他产品请求的原执行路径。
+      // 在 Main 加载前观察 SDK 构造和 Electron net；探针本身不能创建更新器掩盖启动问题。
       const bootstrap = join(desktopRoot, ".e2e-cache", `updates-bootstrap-${environment}.mjs`);
       await mkdir(join(desktopRoot, ".e2e-cache"), { recursive: true });
       await writeFile(
         bootstrap,
         `
-import { net } from 'electron';
-import pkg from ${JSON.stringify(pathToFileURL(require.resolve("electron-updater")).href)};
-const probe = globalThis.__updateProbe = { calls: [], forceRequests: 0 };
-const updater = pkg.autoUpdater;
-for (const name of ['checkForUpdates', 'downloadUpdate', 'quitAndInstall']) {
-  updater[name] = () => { probe.calls.push(name); throw new Error('unexpected updater call'); };
-}
+import { app, net } from 'electron';
+const probe = globalThis.__updateProbe = { updaterInitializations: 0, forceRequests: 0 };
+const getVersion = app.getVersion.bind(app);
+app.getVersion = (...args) => {
+  if (/new AppUpdater/.test(new Error().stack ?? '')) {
+    probe.updaterInitializations++;
+    throw new Error('unexpected updater initialization');
+  }
+  return getVersion(...args);
+};
 const request = net.request.bind(net);
 net.request = (...args) => {
   const value = typeof args[0] === 'string' ? args[0] : args[0]?.url;
   if (value && /client\\/configs.*app_version=/.test(value) && /fetchRemoteForceUpdateConfig|resolveDesktopForceUpdateRequirement/.test(new Error().stack ?? "")) probe.forceRequests++;
   return request(...args);
 };
-probe.updater = updater;
 await import(${JSON.stringify(pathToFileURL(join(desktopRoot, "out/main/index.js")).href)});
 `,
       );
@@ -208,14 +210,12 @@ await import(${JSON.stringify(pathToFileURL(join(desktopRoot, "out/main/index.js
         const probe = values.executable
           ? null
           : await app.evaluate(() => ({
-              calls: globalThis.__updateProbe.calls,
+              updaterInitializations: globalThis.__updateProbe.updaterInitializations,
               forceRequests: globalThis.__updateProbe.forceRequests,
-              autoInstall: globalThis.__updateProbe.updater.autoInstallOnAppQuit,
             }));
         if (probe) {
-          assert.deepEqual(probe.calls, []);
+          assert.equal(probe.updaterInitializations, 0);
           assert.equal(probe.forceRequests, 0);
-          assert.equal(probe.autoInstall, false);
         }
         // 启动日志可能早于 Playwright 返回 app；使用实际持久日志补齐，不能依赖 stdout 订阅时机。
         const logDir = join(runRoot, ".zcode/v2/logs");
@@ -271,8 +271,11 @@ await import(${JSON.stringify(pathToFileURL(join(desktopRoot, "out/main/index.js
             );
             if (!values.executable)
               assert.deepEqual(
-                await restart.app.evaluate(() => globalThis.__updateProbe.calls),
-                [],
+                await restart.app.evaluate(() => ({
+                  updaterInitializations: globalThis.__updateProbe.updaterInitializations,
+                  forceRequests: globalThis.__updateProbe.forceRequests,
+                })),
+                { updaterInitializations: 0, forceRequests: 0 },
               );
             await closeBaseline(restart.app);
             if (values.executable) {

@@ -21,9 +21,12 @@ import pkg, { CancellationToken } from "electron-updater";
 import semver from "semver";
 import { logger } from "./logger.js";
 import { getElectronReleasePlatform, ManifestUpdateProvider } from "./manifestUpdateProvider.js";
-const { autoUpdater } = pkg;
-// 固定产品规则先于历史缓存和初始化生效，阻止 electron-updater 退出安装。
-if (!DESKTOP_PRODUCT_CAPABILITIES.appUpdates) autoUpdater.autoInstallOnAppQuit = false;
+// SDK 的 autoUpdater 是惰性构造 getter，读取就会构造实例并校验 app 版本。
+// 开发壳可能返回无效版本 "0.0"；禁用更新时必须先拒绝访问，不能先构造再关闭退出安装。
+function getAutoUpdater() {
+  assertAppUpdatesAvailable();
+  return pkg.autoUpdater;
+}
 
 export const CHECK_FOR_UPDATE_MENU_ID = "check-for-update";
 const AUTO_UPDATE_POLL_INTERVAL_MS = 60 * 60 * 1000;
@@ -127,7 +130,7 @@ interface InitAutoUpdaterOptions {
 let quitAndInstallInFlight = false;
 let devAutoUpdateVersionOverride: string | null = null;
 
-type MutableAutoUpdaterForDev = typeof autoUpdater & {
+type MutableAutoUpdaterForDev = ReturnType<typeof getAutoUpdater> & {
   currentVersion?: semver.SemVer;
   forceDevUpdateConfig?: boolean;
 };
@@ -190,7 +193,7 @@ function applyDevAutoUpdateRuntimeOverrides(): void {
 
   const devVersion = resolveDevAutoUpdateVersion();
   const parsedVersion = devVersion ? semver.parse(devVersion) : null;
-  const mutableAutoUpdater = autoUpdater as MutableAutoUpdaterForDev;
+  const mutableAutoUpdater = getAutoUpdater() as MutableAutoUpdaterForDev;
   mutableAutoUpdater.forceDevUpdateConfig = true;
   if (parsedVersion) {
     devAutoUpdateVersionOverride = parsedVersion.format();
@@ -477,7 +480,7 @@ async function quitAndInstallUpdate(rejectUnavailable = false) {
     // 3.3.0 的 Windows 自定义 PowerShell delayed launcher 在 detached/hidden
     // 模式下可能只创建 powershell.exe，却没有稳定执行到安装器启动，用户看到应用关闭但版本不变。
     // 这里恢复 electron-updater 原生安装入口，避免把“launcher 进程创建成功”误当成更新已接管。
-    autoUpdater.quitAndInstall();
+    getAutoUpdater().quitAndInstall();
   } finally {
     quitAndInstallInFlight = false;
   }
@@ -763,7 +766,7 @@ async function syncAutoUpdateCheckChannelFromSettings(
 
 function applyManifestUpdateProvider(options: InitAutoUpdaterOptions): void {
   const manifestUrl = options.updateFeedSource?.url.trim();
-  autoUpdater.setFeedURL({
+  getAutoUpdater().setFeedURL({
     provider: "custom",
     updateProvider: ManifestUpdateProvider,
     endpointOrigin: DEFAULT_ZCODE_ENDPOINT_ORIGIN,
@@ -1232,7 +1235,7 @@ function downloadAvailableUpdate(reason = "renderer") {
 
   const cancellationToken = new CancellationToken();
   downloadCancellationToken = cancellationToken;
-  void autoUpdater
+  void getAutoUpdater()
     .downloadUpdate(cancellationToken)
     .catch((error) => {
       if (isCancelledDownload(cancellationToken, error)) {
@@ -1401,7 +1404,7 @@ export function refreshAutoUpdaterReleaseChannel(
   clearAvailableUpdateState();
   setAutoUpdaterMenuState({ kind: "checking", enabled: false });
   const checkId = beginAutoUpdateCheck();
-  autoUpdater
+  getAutoUpdater()
     .checkForUpdates()
     .catch((err) => {
       logger.error(`[auto-update] ${reason} check failed:`, err);
@@ -1502,6 +1505,7 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
   autoUpdaterDisabledForProductFlavor = false;
   if (!canUseAutoUpdaterInCurrentRuntime()) return;
 
+  const autoUpdater = getAutoUpdater();
   onBeforeQuitAndInstall = options.onBeforeQuitAndInstall;
   if (options.locale) {
     menuLocale = options.locale;
@@ -1845,7 +1849,7 @@ export function requestForceAutoUpdate(
 
   const checkId = beginAutoUpdateCheck();
   setAutoUpdaterMenuState({ kind: "checking", enabled: false });
-  autoUpdater
+  getAutoUpdater()
     .checkForUpdates()
     .catch((err) => {
       const message = err instanceof Error ? err.message : String(err);
@@ -1944,7 +1948,7 @@ export function checkForUpdateMenuClick(originWindow?: BrowserWindow | null) {
   const checkId = beginAutoUpdateCheck();
   void (async () => {
     await clearSkippedUpdateVersionForManualCheck(manualCheckChannel, autoUpdaterSettingService);
-    await autoUpdater.checkForUpdates();
+    await getAutoUpdater().checkForUpdates();
   })()
     .catch((err) => {
       logger.error("[auto-update] manual check failed:", err);
