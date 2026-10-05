@@ -1,15 +1,21 @@
-# ZCode
+# 郑商智助 · CZCE Agent
 
 <div align="center">
-  <img src="public/logo/icons/1024x1024.png" alt="ZCode" width="128" height="128" />
+  <img src="public/logo/icons/1024x1024.png" alt="郑商智助 · CZCE Agent" width="128" height="128" />
 </div>
 <p align="center">
-  <a href="https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=47ag983c-8fcb-4d6d-814b-5395193a712c&amp;qr_code=true">飞书社群</a> ·
-  <a href="https://discord.gg/z9aBcQXZQ3">Discord</a>
+  <a href="https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=47ag983c-8fcb-4d6d-814b-5395193a712c&amp;qr_code=true">ZCode 上游飞书社群</a> ·
+  <a href="https://discord.gg/z9aBcQXZQ3">ZCode Discord</a>
 </p>
 <p align="center">
   简体中文 | <a href="README.en.md">English</a>
 </p>
+
+**郑商所智能工作助手**
+
+协助处理知识查询、材料整理、数据分析与日常任务。
+
+郑商智助（CZCE Agent）基于 ZCode Fork 开发。以上介绍表达产品方向，当前功能范围以下文为准；仓库名称及内部兼容标识暂时保持不变。
 
 本 Fork 只发布本地 Desktop，保留本地 Provider/API key、Agent 工具、会话恢复、用户/工作区 Skills、stdio/HTTP MCP 与必要鉴权。Web、更新、账号/订阅、商店、分享、遥测、远程工作区与手机远控已关闭；普通 Agent 网络、shell 和浏览器能力保留。
 
@@ -56,6 +62,16 @@ pnpm dev:desktop:test
 ZCODE_DATA_BASE_DIR="$HOME/.zcode-dev-home" pnpm dev:desktop:test
 ```
 
+模拟新用户首次打开时，先退出应用并停止当前开发进程，再执行：
+
+```bash
+mise run dev-first-run
+# 等价入口
+pnpm dev:desktop:first-run
+```
+
+每次执行都会创建新的临时用户目录，隔离设置、引导记录、任务/会话和 Electron 缓存，再按测试环境启动。终端会打印目录路径；退出后保留数据，便于查看日志。原 `mise run dev` 保持不变。该命令只模拟应用数据为空的启动，不重置系统授权或已安装的第三方工具；仅设置 `ZCODE_DATA_BASE_DIR` 不会隔离全局设置和 Electron 缓存。
+
 ### CLI 源码开发
 
 直接开发 TUI 或 Agent 时，运行源码入口：
@@ -99,10 +115,10 @@ pnpm bundle:desktop -- --help
 
 默认目标为 macOS arm64，默认输出目录为 `packages/desktop/dist/`。`--os` 支持 `mac`、`win`、`linux`，`--arch` 支持 `x64`、`arm64`；实际打包与签名需要目标平台对应的工具和配置。
 
-安装：双击打开产物 DMG，将 ZCode 拖入"应用程序"。本地构建未签名，首次打开若被 macOS 拦截，执行：
+安装：双击打开产物 DMG，将郑商智助拖入"应用程序"。本地构建未签名，首次打开若被 macOS 拦截，执行：
 
 ```bash
-sudo xattr -rd com.apple.quarantine /Applications/ZCode.app
+sudo xattr -rd com.apple.quarantine /Applications/郑商智助.app
 ```
 
 ### 验证

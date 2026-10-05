@@ -20,6 +20,10 @@ description = "Start the desktop app in an isolated local test environment."
 env = { ZCODE_DATA_BASE_DIR = "{{env.HOME}}/.zcode-dev-home" }
 run = "mise exec -- node scripts/mise-run.mjs pnpm dev:desktop:test"
 
+[tasks.dev-first-run]
+description = "Simulate the first Desktop launch with fresh temporary user data on every invocation."
+run = "mise exec -- node scripts/mise-run.mjs pnpm dev:desktop:first-run"
+
 [tasks.dev-desktop-prod]
 description = "Start the desktop app against the production environment."
 run = "mise exec -- node scripts/mise-run.mjs pnpm dev:desktop:prod"

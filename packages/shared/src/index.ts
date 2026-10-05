@@ -127,6 +127,7 @@ export * from "./remoteAppConfig.js";
 export * from "./helpAppConfig.js";
 export * from "./remoteAssetInstallMode.js";
 export * from "./onboardingRecord.js";
+export * from "./onboardingOccupation.js";
 export * from "./remoteResourcePackages.js";
 export * from "./plan-identity.js";
 export {
@@ -315,3 +316,4 @@ export {
 } from "./productCapabilities.js";
 export type { ProductCapabilities } from "./productCapabilities.js";
 export * from "./remoteProductCapabilities.js";
+export { PRODUCT_BRANDING } from "./productBranding.js";

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none">
+  <defs>
+    <linearGradient id="tile" x1="128" y1="0" x2="128" y2="256" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EDF8FF"/>
+      <stop offset="1" stop-color="#D3E9FD"/>
+    </linearGradient>
+  </defs>
+  <rect data-native-backplate="true" x="1" y="1" width="254" height="254" rx="46" fill="url(#tile)" stroke="#BFDEF5" stroke-width="2"/>
+<defs>
+    <linearGradient id="blue" x1="96" y1="64" x2="172" y2="210" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#064CA5"/>
+      <stop offset="1" stop-color="#003C8B"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="72" y1="94" x2="164" y2="180" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFDD25"/>
+      <stop offset="1" stop-color="#FFC810"/>
+    </linearGradient>
+  </defs>
+  <rect x="44" y="94" width="120" height="116" rx="8" fill="url(#blue)"/>
+  <rect x="72" y="64" width="121" height="116" rx="8" fill="url(#blue)"/>
+  <path d="M72 94H140L72 162V94Z" fill="url(#gold)"/>
+  <path d="M164 112V180H96L164 112Z" fill="url(#gold)"/>
+  <path d="M207 23C210 41 210 42 227 46C210 50 210 51 207 69C204 51 204 50 187 46C204 42 204 41 207 23Z" fill="#FFD322" stroke="#064798" stroke-width="3.5" stroke-linejoin="round"/>
+</svg>

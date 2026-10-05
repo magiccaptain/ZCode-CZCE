@@ -10,24 +10,10 @@ import {
   embeddedBrowserViewportPreferenceSchema,
 } from "./browser-use/command-metadata.js";
 import { providerFamilyConnectionSelectionSettingsSchema } from "./provider-family-connection-selection.js";
+import { ONBOARDING_OCCUPATION_VALUES } from "./onboardingOccupation.js";
 
 /** 引导职业枚举；单独导出供 onboarding 记录回填 settings 时做窄化校验。 */
-const appSettingsOccupationSchema = z.enum([
-  "office",
-  "developer",
-  "independent",
-  "infrastructure",
-  "product",
-  "design",
-  "student",
-  "creator",
-  "operations",
-  "marketing",
-  "finance",
-  "accounting",
-  "legal",
-  "other",
-]);
+const appSettingsOccupationSchema = z.enum(ONBOARDING_OCCUPATION_VALUES);
 export const appSettingsOccupationEnum = appSettingsOccupationSchema;
 
 const nonEmptyStringSchema = z.string().trim().min(1);
@@ -527,24 +513,7 @@ export const appSettingsPatchSchema = z.object({
   providerFamilyDomainUpdatedAt: z.number().int().nonnegative().optional(),
   providerFamilyDomainMigrated: z.boolean().optional(),
   nativeSearchEnhancementsEnabled: z.boolean().optional(),
-  onboardingOccupation: z
-    .enum([
-      "office",
-      "developer",
-      "independent",
-      "infrastructure",
-      "product",
-      "design",
-      "student",
-      "creator",
-      "operations",
-      "marketing",
-      "finance",
-      "accounting",
-      "legal",
-      "other",
-    ])
-    .nullish(),
+  onboardingOccupation: appSettingsOccupationSchema.nullish(),
   proactiveSuggestionsEnabled: z.boolean().optional(),
   memoryEnabled: z.boolean().optional(),
   lastWorkspaceSession: z.array(appWorkspaceSessionEntrySchema).optional(),

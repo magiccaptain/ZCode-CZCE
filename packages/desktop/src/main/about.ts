@@ -1,5 +1,6 @@
 import type { BrowserWindow, MessageBoxReturnValue } from "electron";
 import { existsSync, readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { arch, hostname, platform, release, type, version as osVersion } from "node:os";
 import { join } from "node:path";
 import {
@@ -9,6 +10,7 @@ import {
   ZCODE_COMMIT,
   ZCODE_ENV,
   ZCODE_VERSION,
+  PRODUCT_BRANDING,
 } from "@zcode/shared";
 import { createCustomAboutDialogHtml } from "./aboutWindow.js";
 
@@ -52,7 +54,6 @@ interface AboutSnapshotOptions {
   };
 }
 
-const ABOUT_APPLICATION_NAME = "ZCode Desktop App";
 // 自定义 About 内容本体是 256x280；原生窗口如果同尺寸会让内容贴满透明窗口边界。
 // 这里给 BrowserWindow 额外留出背景呼吸空间，避免正式 About 看起来比 demo 更局促。
 const ABOUT_WINDOW_WIDTH = 256;
@@ -68,14 +69,14 @@ const ABOUT_MESSAGES: Record<
   }
 > = {
   "zh-CN": {
-    aboutTitle: "关于 ZCode",
+    aboutTitle: `关于 ${PRODUCT_BRANDING.name}`,
     versionLabel: "版本",
     okButtonLabel: "确定",
     optimizedForAppleSilicon: "已针对 Apple Silicon 优化。",
     copyright: (year) => `版权所有 © ${year} ZCode。`,
   },
   "en-US": {
-    aboutTitle: "About ZCode",
+    aboutTitle: `About ${PRODUCT_BRANDING.englishName}`,
     versionLabel: "version",
     okButtonLabel: "OK",
     optimizedForAppleSilicon: "Optimized for Apple Silicon.",
@@ -228,6 +229,9 @@ export async function showAboutDialog(
   // 问题原因：各平台原生消息框的排版、图标和按钮样式差异很大，无法复用 macOS 参考样式。
   // 这里统一使用自绘 modal，保证 About 的品牌展示和多语言文案在三端一致。
   const iconPath = resolveAboutIconPath(app.isPackaged);
+  // 系统应用图标需要保留底板；关于窗口展示随 Renderer 打包的透明版本，避免深色界面出现浅色块。
+  const interfaceIconPath = join(import.meta.dirname, "../renderer/branding/czce-agent.png");
+  const applicationIconUrl = `data:image/png;base64,${(await readFile(interfaceIconPath)).toString("base64")}`;
   const aboutWindow = new BrowserWindow({
     width: ABOUT_WINDOW_WIDTH,
     height: ABOUT_WINDOW_HEIGHT,
@@ -255,7 +259,8 @@ export async function showAboutDialog(
   void aboutWindow.loadURL(
     `data:text/html;charset=utf-8,${encodeURIComponent(
       createCustomAboutDialogHtml({
-        applicationName: ABOUT_APPLICATION_NAME,
+        applicationName: locale === "zh-CN" ? PRODUCT_BRANDING.name : PRODUCT_BRANDING.englishName,
+        applicationIconUrl,
         appVersion: snapshot.appVersion,
         copyright: formatAboutCopyright(undefined, locale),
         optimizationLine: formatAboutOptimizationLine(snapshot, locale),

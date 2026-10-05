@@ -11,17 +11,19 @@ interface OccupationGridProps {
   saving: boolean;
   onSelect: (value: OccupationValue) => void;
   label: string;
-  /** 职业显示文案（i18n 已格式化）。 */
+  /** 工作方向名称和任务说明（i18n 已格式化）。 */
   formatLabel: (value: OccupationValue) => string;
+  formatDescription: (value: OccupationValue) => string;
 }
 
-/** 引导第一步的职业选择网格；从 OccupationOnboarding 抽出以控制文件行数。 */
+/** 引导第一步的工作方向选择网格；从 OccupationOnboarding 抽出以控制文件行数。 */
 export function OnboardingOccupationGrid({
   occupation,
   saving,
   onSelect,
   label,
   formatLabel,
+  formatDescription,
 }: OccupationGridProps) {
   return (
     <div
@@ -54,7 +56,12 @@ export function OnboardingOccupationGrid({
                   : "text-foreground-subtle dark:text-foreground-subtlest dark:group-hover:text-foreground-subtle",
               )}
             />
-            <span className="min-w-0 flex-1">{formatLabel(value)}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-medium">{formatLabel(value)}</span>
+              <span className="mt-1 block text-ui-sm leading-relaxed text-foreground-subtle">
+                {formatDescription(value)}
+              </span>
+            </span>
             <span
               aria-hidden="true"
               className={cn(

@@ -55,6 +55,13 @@ function LocalWelcomeScreen({ onComplete }: WelcomeScreenProps) {
     <main className="flex h-full items-center justify-center bg-background text-foreground">
       <section className="flex max-w-sm flex-col gap-4 p-6 text-ui-base">
         <ZCodeAboutLogo />
+        <h1 className="text-ui-xl font-semibold">{intl.formatMessage({ id: "product.name" })}</h1>
+        <p className="text-ui-base text-foreground-subtle">
+          {intl.formatMessage({ id: "product.description" })}
+        </p>
+        <p className="text-ui-base text-foreground-subtle">
+          {intl.formatMessage({ id: "product.introduction" })}
+        </p>
         <p>{intl.formatMessage({ id: "settings.modelProvider.localConfigurationHint" })}</p>
         <Button onClick={() => void onComplete("skip")}>
           {intl.formatMessage({ id: "occupationOnboarding.continue" })}
@@ -493,14 +500,14 @@ function LoginPanelHeader({
 }
 
 function LoginPanelLogo() {
+  const { intl } = useZCodeIntl();
   return (
-    // 登录 logo 壳是固定深色底，边框不能跟随浅色主题 token，否则浅色主题下边框过重。
     <div
-      className="relative mb-1 flex size-16 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#000000_0%,#151718_100%)] text-[#ffffff] shadow-lg/20 before:pointer-events-none before:absolute before:inset-0 before:rounded-2xl before:border before:border-[rgba(255,255,255,0.1)]"
-      aria-label="ZCode"
+      className="relative mb-1 size-16"
+      aria-label={intl.formatMessage({ id: "product.name" })}
       role="img"
     >
-      <ZCodeAboutLogo className="h-auto w-10" />
+      <ZCodeAboutLogo className="size-full" />
     </div>
   );
 }

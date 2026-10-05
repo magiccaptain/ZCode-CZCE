@@ -1,4 +1,4 @@
-# ZCode Design System
+# 郑商智助（CZCE Agent）Design System
 
 Portable design system for AI-assisted UI work in this repository.
 
@@ -19,7 +19,7 @@ Treat violations of this section as design-system defects, not stylistic prefere
 
 ## Product Character
 
-ZCode is a desktop-first and web-compatible AI workspace. The interface should feel calm, dense, and operational rather than decorative.
+郑商智助（CZCE Agent）is a local desktop AI work assistant based on ZCode. The interface should feel calm, dense, and operational rather than decorative.
 
 Design for:
 
@@ -38,6 +38,8 @@ Avoid:
 - playful gradients as the default UI language
 - bright full-surface brand fills
 - ambiguous hierarchy between background, card, and popover surfaces
+
+The product icon uses the approved CZCE Agent B artwork at `packages/ui/src/assets/branding/czce-agent.svg`: offset blue squares, yellow wedges, and a small gold sparkle. Interface icons use a transparent background with compact framing and no card shadow, border, or backplate. Preserve the blue and yellow colors in both themes. The draft-page watermark uses the complete transparent artwork with brightness(0.75) and 20% opacity, preserving its blue and yellow fills. System application, tray, installer and Dock assets retain the B artwork's pale-blue rounded tile. Generate all variants and startup copies with `pnpm --filter @zcode/desktop exec electron ../../scripts/generate-product-icons.mjs`; keep the shape in the canonical SVG only.
 
 ## Theme Modes
 
@@ -460,7 +462,7 @@ Overlay rules:
 
 ## Elevation and Depth
 
-ZCode should use restrained depth. Layer primarily through background contrast, borders, and radius before relying on heavy shadows.
+郑商智助 should use restrained depth. Layer primarily through background contrast, borders, and radius before relying on heavy shadows.
 
 Recommended elevation levels:
 

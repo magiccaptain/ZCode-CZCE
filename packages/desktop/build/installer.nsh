@@ -526,7 +526,7 @@
     zcodeInstallDirDataBlockFound:
       IfSilent zcodeInstallDirDataBlockSilent
 
-      !insertmacro MUI_HEADER_TEXT "需要修改安装目录" "当前安装目录或其子目录包含 ZCode 数据目录"
+      !insertmacro MUI_HEADER_TEXT "需要修改安装目录" "当前安装目录或其子目录包含 .zcode 数据目录"
       nsDialogs::Create 1018
       Pop $0
       StrCmp $0 error zcodeInstallDirDataBlockDialogFailed 0

@@ -7,7 +7,6 @@ import { ZCodeStartupLogoBadge } from "@/root/RootStartupLoading.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { cn } from "@/components/lib/utils.js";
 import { useResolvedThemeHeroPalette } from "@/openWorkspacePageThemeHero.js";
-import "@/onboarding/onboardingLogoSweep.css";
 
 export function OccupationOnboardingVisual({
   isMacDesktop,
@@ -50,23 +49,18 @@ export function OccupationOnboardingVisual({
         className="pointer-events-none absolute inset-0 z-10 rounded-[inherit] border border-border"
       />
       <div className="relative my-auto flex w-full max-w-[640px] shrink-0 flex-col items-start [container-type:inline-size]">
-        <div aria-hidden="true" className="relative mb-10 rounded-3xl">
+        <div aria-hidden="true" className="relative mb-10">
           <ZCodeStartupLogoBadge animated={false} />
-          <div className="onboarding-logo-sweep">
-            <div />
-          </div>
         </div>
-        <h2
-          className={cn(
-            "whitespace-nowrap text-[clamp(24px,7cqw,48px)] leading-[1.15] font-semibold tracking-[-0.035em]",
-            palette.heading,
-          )}
-        >
+        <p className="mb-4 text-ui-xl font-semibold text-foreground">
+          {intl.formatMessage({ id: "product.name" })}
+        </p>
+        <h2 className={cn("text-ui-lg font-semibold", palette.heading)}>
           {intl.formatMessage({ id: "occupationOnboarding.heroTitle" })}
         </h2>
         <p
           className={cn(
-            "mt-6 w-full whitespace-pre-line text-[16px] leading-[26px]",
+            "mt-6 w-full whitespace-pre-line text-ui-base leading-relaxed",
             palette.description,
             "dark:text-slate-200",
           )}

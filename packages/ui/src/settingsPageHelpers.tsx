@@ -33,7 +33,11 @@ import { DataBaseDirControl } from "@/settings/DataBaseDirControl.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
 import { ProactiveSuggestionsSetting } from "@/settings/ProactiveSuggestionsSetting.js";
-import { normalizeInterfaceMode, type InterfaceMode } from "@/lib/interfaceMode.js";
+import {
+  DEFAULT_INTERFACE_MODE,
+  normalizeInterfaceMode,
+  type InterfaceMode,
+} from "@/lib/interfaceMode.js";
 import {
   createSettingsPageConfig,
   resolveSettingsSectionForPlatform,
@@ -49,7 +53,7 @@ const ZCODE_INTERACTION_BEHAVIOR_OPTIONS: readonly ZCodeInteractionBehavior[] = 
 
 export function GeneralSectionContent({
   localePreference,
-  interfaceMode = "coding",
+  interfaceMode = DEFAULT_INTERFACE_MODE,
   setInterfaceMode = () => {},
   notificationEnabled,
   notificationSoundEnabled,

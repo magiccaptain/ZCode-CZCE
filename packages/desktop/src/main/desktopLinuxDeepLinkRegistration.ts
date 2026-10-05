@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { PRODUCT_BRANDING } from "@zcode/shared";
 import { installLinuxAppImageDesktopIconBestEffort } from "./desktopLinuxAppImageIcon.js";
 import {
   runXdgCommand,
@@ -109,7 +110,7 @@ function createLinuxDeepLinkDesktopEntry(params: {
   productName?: string;
   iconName?: string;
 }): string {
-  const productName = params.productName ?? "ZCode";
+  const productName = params.productName ?? PRODUCT_BRANDING.name;
   const iconName = params.iconName ?? "zcode";
   const command = {
     executablePath: params.executablePath,

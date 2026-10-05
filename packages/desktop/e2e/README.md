@@ -1,5 +1,27 @@
 # Desktop 核心 E2E 基线
 
+## 首次打开模拟
+
+开发入口：`mise run dev-first-run`（等价 `pnpm dev:desktop:first-run`）。先退出应用并停止当前开发进程；每次命令使用新的临时数据，终端打印目录，退出后保留。原 `mise run dev` 不变。
+
+`node --test packages/desktop/test/firstRunDevelopment.test.mjs` 覆盖命令配置、完整路径隔离、原数据保留、退出码与信号。`pnpm exec tsx packages/desktop/e2e/run-first-run.mjs` 重建实际 Agent/Desktop，复用新入口的环境分配并通过实际 UI 完成引导，验证同目录重启不再引导、再次分配新目录重新引导、Electron 实际路径及旧引导文件保留，不请求模型。截图与报告位于 `.e2e-artifacts/first-run-*/`；E2E 本身使用现有构建测试启动器，命令委派由子进程测试覆盖。
+
+规则见 [`first-run-development.md`](../../../specs/desktop-local-fork/first-run-development.md)。本机结果不代替 Windows/macOS 或安装器验证。
+
+模式默认值专项：`pnpm exec tsx --test packages/ui/test/interfaceMode.test.ts` 验证首次缺省为办公与已保存偏好/旧别名恢复。上述首次启动 E2E 还核验引导第二步办公在第一行并默认选中、编程在第二行、办公完成后重启以及主动选择编程后重启和手动重开引导。规则见 [`onboarding-interface-mode.md`](../../../specs/desktop-local-fork/onboarding-interface-mode.md)。
+
+工作方向专项：`pnpm exec tsx --test packages/ui/test/onboardingWorkDirections.test.ts packages/services/test/onboardingWorkDirections.test.ts` 验证 12 项郑商所工作方向的设置/patch 校验、中英文名称与任务说明、旧职业兼容、记录同步与跳过语义。首次启动 E2E 同时检查第一步无默认选择、“下一步”禁用、选中/返回/改选、保存重启及手动重开预填，覆盖中英文、浅/深主题、宽屏两列和窄屏一列。规则见 [`onboarding-work-directions.md`](../../../specs/desktop-local-fork/onboarding-work-directions.md)。
+
+第三步偏好专项复用首次启动 E2E：中文办公只有推荐/记忆两项、默认勾选、可取消并保存/重开恢复；英文编程只有记忆一项、默认关闭。完成与跳过都不从引导打开迁移向导，跳过仍保留 settings false / record null。截图为 `office-preferences.png`、`coding-preferences.png`，规则见 [`onboarding-preferences.md`](../../../specs/desktop-local-fork/onboarding-preferences.md)。
+
+## 产品品牌
+
+`pnpm exec tsx packages/desktop/e2e/run-branding.mjs` 从当前源码重建 Desktop，在独立临时目录实跑中文/英文首次引导、侧栏、原生关于窗口及正常退出，不请求模型。品牌元数据使用 shared 公共入口；测试确认新显示名称和显式 userData/sessionData 覆盖，并保留上游版权文字。
+
+`node --test packages/desktop/test/productBranding.test.mjs` 验证 production / preview / development 名称、原数据目录及应用名隔离覆盖。截图和报告写入忽略的 `.e2e-artifacts/branding-*/`；本机 E2E 不代替 Windows/macOS 安装包验证。
+
+图标的唯一形状源是透明的 `packages/ui/src/assets/branding/czce-agent.svg`。修改后从根目录执行 `pnpm --filter @zcode/desktop exec electron ../../scripts/generate-product-icons.mjs`，派生轮廓 SVG、透明 UI PNG、带底板的应用 SVG、全部 PNG/ICO/ICNS 与启动壳副本。`public/logo/czce-agent.png` 是透明预览；`public/logo/icons/` 继续保存带 B 款底板的系统图标。`node --test packages/desktop/test/productIcons.test.mjs` 校验尺寸、容器、副本和三种版本的形状一致；品牌 E2E 检查启动、引导、侧栏及关于图像的实际 alpha，检查首页轮廓 mask 加载、内部空白和主题 foreground 颜色，并保存浅深色截图。启动壳采用构建 HTML 的隔离渲染，不执行启动脚本，不作为实际启动就绪信号的时序测试。
+
 ## Issue #6 安装包综合关闭冒烟
 
 先从当前源码执行 `ZCODE_ENV=production pnpm build` 并生成本机 AppImage（Linux：`ZCODE_ENV=production ZCODE_TARGET_OS=linux ZCODE_TARGET_ARCH=x64 pnpm --filter @zcode/desktop exec electron-builder --config electron-builder.config.js --linux AppImage --x64`）。默认准备不再需要 remote skip 环境。

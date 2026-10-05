@@ -5,6 +5,7 @@ import type { ProviderFamilyConnectionSelectionSettings } from "./provider-famil
 import type { ZCodeProvider } from "./zcode-task-types-core.js";
 import type { WorkspacePurpose } from "./workspacePurpose.js";
 import type { EmbeddedBrowserViewportPreference } from "./browser-use/command-metadata.js";
+import type { OnboardingOccupation } from "./onboardingOccupation.js";
 
 // ── Domain types ──
 
@@ -323,22 +324,8 @@ export interface AppSettings {
   nativeSearchEnhancementsEnabled?: boolean;
   /** 新建或冷恢复 Session 是否启用 Memory；默认关闭。 */
   memoryEnabled?: boolean;
-  onboardingOccupation?:
-    | "office"
-    | "developer"
-    | "independent"
-    | "infrastructure"
-    | "product"
-    | "design"
-    | "student"
-    | "creator"
-    | "operations"
-    | "marketing"
-    | "finance"
-    | "accounting"
-    | "legal"
-    | "other"
-    | null;
+  /** 引导工作方向；旧职业值仅保留读写兼容。 */
+  onboardingOccupation?: OnboardingOccupation | null;
   proactiveSuggestionsEnabled?: boolean;
   /** 上次关闭时的完整 workspace 会话（含本地与远端 workspace） */
   lastWorkspaceSession?: PersistedWorkspaceSessionEntry[];

@@ -141,7 +141,8 @@ export function DesktopTopOverlay({
             >
               <img
                 src={appLogoUrl}
-                alt="ZCode"
+                data-product-icon="czce-agent"
+                alt={intl.formatMessage({ id: "product.name" })}
                 className="size-5 transition-opacity duration-150 group-hover:opacity-0"
                 draggable={false}
               />

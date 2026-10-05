@@ -1,7 +1,7 @@
 import { useOnboardingTelemetry } from "@/onboarding/useOnboardingTelemetry.js";
 import { OnboardingHeader } from "@/onboarding/OnboardingHeader.js";
 import { OccupationOnboardingVisual } from "@/onboarding/OccupationOnboardingVisual.js";
-import { occupations, type OccupationValue } from "@/onboarding/occupationOptions.js";
+import type { OccupationValue } from "@/onboarding/occupationOptions.js";
 import { OnboardingModeSelector } from "@/onboarding/OnboardingModeSelector.js";
 import { OnboardingOccupationGrid } from "@/onboarding/OnboardingOccupationGrid.js";
 import { useOnboardingTrigger } from "@/onboarding/useOnboardingTrigger.js";
@@ -18,7 +18,7 @@ import { useZCodeStore } from "@/store/StoreProvider.js";
 import type { InterfaceMode } from "@/lib/interfaceMode.js";
 import { logger } from "@/logger.js";
 import { DesktopWindowControls } from "@/DesktopWindowControls.js";
-import type { OnboardingRecordEntry } from "@zcode/shared";
+import { isOnboardingWorkDirection, type OnboardingRecordEntry } from "@zcode/shared";
 
 /** 追加本地引导记录（userId 由 host 补全）；channel 缺失挂起时 5 秒超时按写失败处理。 */
 async function appendOnboardingRecord(
@@ -57,15 +57,13 @@ export function OccupationOnboarding({
   const userId = useZCodeStore((state) => state.user?.id) ?? null;
   const { intl } = useZCodeIntl();
   const t = (key: string) => intl.formatMessage({ id: `occupationOnboarding.${key}` });
-  const [occupation, setOccupation] = useState<OccupationValue | null>("developer");
+  const [occupation, setOccupation] = useState<OccupationValue | null>(null);
   const savedInterfaceMode = useZCodeStore((state) => state.interfaceMode);
   const setInterfaceMode = useZCodeStore((state) => state.setInterfaceMode);
   // mode 为 null 表示模式页被"跳过"（跳过是显式答案，记录里保留 null 而非兜底值）。
   const [mode, setMode] = useState<InterfaceMode | null>(savedInterfaceMode);
   const [step, setStep] = useState<0 | 1 | 2>(0);
   const preferences = step === 2;
-  const requestOnboardingDialog = useZCodeStore((state) => state.requestOnboardingDialog);
-  const [migration, setMigration] = useState(false);
   const [memory, setMemory] = useState(savedInterfaceMode === "office");
   const [suggestions, setSuggestions] = useState(savedInterfaceMode === "office");
   const suggestionsEditedRef = useRef(false);
@@ -93,7 +91,6 @@ export function OccupationOnboarding({
     mode,
     memory,
     suggestions,
-    migration,
   });
   const closeOnboarding = useCallback(() => {
     if (savingRef.current) return;
@@ -186,17 +183,12 @@ export function OccupationOnboarding({
   const applyLatestEntry = () => {
     const entry = latestEntry;
     setStep(0);
-    setOccupation(
-      entry?.occupation && (occupations as readonly string[]).includes(entry.occupation)
-        ? (entry.occupation as OccupationValue)
-        : "developer",
-    );
+    setOccupation(isOnboardingWorkDirection(entry?.occupation) ? entry.occupation : null);
     const initialMode = entry?.interfaceMode ?? savedInterfaceMode;
     setMode(initialMode);
     // 编程模式默认关闭主动工作记忆；办公模式才恢复该用户之前的勾选。
     setMemory(initialMode === "office" && (entry?.memoryEnabled ?? true));
     setSuggestions(entry?.proactiveSuggestionsEnabled ?? initialMode === "office");
-    setMigration(false);
     setError(false);
   };
   useEffect(() => {
@@ -238,7 +230,6 @@ export function OccupationOnboarding({
       setStep(0);
       setDismissed(true);
       setRequested(false);
-      if (!skip && migration) requestOnboardingDialog("migration");
       logger.info("[occupation-onboarding] 偏好保存完成", { interfaceMode: mode });
       if (onboardingRecord) {
         try {
@@ -325,7 +316,7 @@ export function OccupationOnboarding({
                     />
                   ) : preferences ? (
                     <div className="mt-8 space-y-3">
-                      {(["suggestions", "memory", "migration"] as const)
+                      {(["suggestions", "memory"] as const)
                         .filter((key) => key !== "suggestions" || mode === "office")
                         .map((key) => (
                           <label
@@ -333,18 +324,11 @@ export function OccupationOnboarding({
                             className="grid cursor-pointer grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2 rounded-xl border border-card-border bg-card dark:bg-surface/40 p-5 text-ui-base transition-colors hover:bg-surface-hover"
                           >
                             <Checkbox
-                              checked={
-                                key === "migration"
-                                  ? migration
-                                  : key === "memory"
-                                    ? memory
-                                    : suggestions
-                              }
+                              checked={key === "memory" ? memory : suggestions}
                               disabled={saving}
                               onCheckedChange={(checked) => {
                                 markUserEdited();
-                                if (key === "migration") setMigration(checked === true);
-                                else if (key === "memory") setMemory(checked === true);
+                                if (key === "memory") setMemory(checked === true);
                                 else {
                                   suggestionsEditedRef.current = true;
                                   setSuggestions(checked === true);
@@ -368,6 +352,7 @@ export function OccupationOnboarding({
                       }}
                       label={t("title")}
                       formatLabel={(value) => t(value)}
+                      formatDescription={(value) => t(`${value}Description`)}
                     />
                   )}
                   {error ? (

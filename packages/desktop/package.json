@@ -1,7 +1,7 @@
 {
   "name": "@zcode/desktop",
   "private": true,
-  "description": "ZCode Desktop App",
+  "description": "郑商所智能工作助手",
   "author": "ZCode",
   "type": "module",
   "main": "out/main/index.js",
@@ -85,5 +85,5 @@
     "typescript": "^6.0.2",
     "vite": "^8.0.2"
   },
-  "productName": "ZCode"
+  "productName": "郑商智助"
 }

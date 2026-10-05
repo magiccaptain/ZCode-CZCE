@@ -1,7 +1,7 @@
 /* eslint-disable max-lines -- 强制升级提示窗口包含内联 HTML/CSS 和状态脚本，启动前不能依赖 renderer 包 */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { type Locale } from "@zcode/shared";
+import { PRODUCT_BRANDING, type Locale } from "@zcode/shared";
 import type { ForceUpdateDialogText, ForceUpdateGuardLogger } from "./forceUpdateGuard.js";
 import type { ForceAutoUpdateState } from "./autoUpdater.js";
 
@@ -306,8 +306,8 @@ function renderForceUpdatePromptHtml(text: ForceUpdateDialogText, locale: Locale
     <main class="panel" role="dialog" aria-modal="true" aria-labelledby="title">
       <header class="titlebar">
         <div class="brand">
-          <div class="brand-icon">${icon ? `<img src="${icon}" alt="" />` : "Z"}</div>
-          <div class="brand-title">ZCode</div>
+          <div class="brand-icon">${icon ? `<img src="${icon}" alt="" />` : "郑"}</div>
+          <div class="brand-title">${escapeHtml(PRODUCT_BRANDING.name)}</div>
         </div>
         <button class="close" type="button" data-action="quit" aria-label="${escapeHtml(text.quitButton)}">×</button>
       </header>

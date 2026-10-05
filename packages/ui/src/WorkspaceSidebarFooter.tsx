@@ -1,5 +1,5 @@
 /* oxlint-disable eslint(max-lines) -- footer 聚合账户、主题、模式和快捷键菜单。 */
-import type { Locale, UserInfo } from "@zcode/shared";
+import { PRODUCT_BRANDING, type Locale, type UserInfo } from "@zcode/shared";
 import { memo, useCallback, useEffect, useState } from "react";
 import {
   DesktopCommandIds,
@@ -66,7 +66,7 @@ function getSidebarProfileName(user?: UserInfo | null): string {
     return username;
   }
 
-  return "ZCode";
+  return PRODUCT_BRANDING.name;
 }
 
 function getSidebarProfileBadge(
@@ -135,7 +135,9 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   const zoomOutShortcutLabel = useShortcutCommandLabel("zoomOut");
   const resetZoomShortcutLabel = useShortcutCommandLabel("resetZoom");
   const isRestoringOAuthSession = useZCodeStore((state) => state.isRestoringOAuthSession);
-  const profileBadge = accountEnabled ? getSidebarProfileBadge(user, intl.formatMessage) : "ZCode";
+  const profileBadge = accountEnabled
+    ? getSidebarProfileBadge(user, intl.formatMessage)
+    : intl.formatMessage({ id: "product.name" });
   const avatarFallbackText = getAvatarFallbackText(user);
   const avatarKey = user?.avatarUrl ?? user?.id ?? "guest";
   const showAuthRestoreLoading = accountEnabled && !user && isRestoringOAuthSession;

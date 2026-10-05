@@ -1,5 +1,6 @@
 import { cn } from "@/components/lib/utils.js";
-import zaiLogoUrl from "@/assets/provider-icons/logo-zai.svg";
+import appLogoUrl from "@/assets/branding/czce-agent.svg";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 
 export function WindowsTopLeftLogo({
   className,
@@ -8,6 +9,7 @@ export function WindowsTopLeftLogo({
   className?: string;
   imageClassName?: string;
 }) {
+  const { intl } = useZCodeIntl();
   return (
     <div
       className={cn(
@@ -20,8 +22,9 @@ export function WindowsTopLeftLogo({
       )}
     >
       <img
-        src={zaiLogoUrl}
-        alt="ZCode"
+        src={appLogoUrl}
+        data-product-icon="czce-agent"
+        alt={intl.formatMessage({ id: "product.name" })}
         className={cn("pointer-events-none size-5 select-none", imageClassName)}
         draggable={false}
       />

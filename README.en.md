@@ -1,15 +1,21 @@
-# ZCode
+# CZCE Agent（郑商智助）
 
 <div align="center">
-  <img src="public/logo/icons/1024x1024.png" alt="ZCode" width="128" height="128" />
+  <img src="public/logo/icons/1024x1024.png" alt="郑商智助 · CZCE Agent" width="128" height="128" />
 </div>
 <p align="center">
-  <a href="https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=47ag983c-8fcb-4d6d-814b-5395193a712c&amp;qr_code=true">Feishu community</a> ·
-  <a href="https://discord.gg/z9aBcQXZQ3">Discord</a>
+  <a href="https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=47ag983c-8fcb-4d6d-814b-5395193a712c&amp;qr_code=true">ZCode upstream community</a> ·
+  <a href="https://discord.gg/z9aBcQXZQ3">ZCode Discord</a>
 </p>
 <p align="center">
   <a href="README.md">简体中文</a> | English
 </p>
+
+**Intelligent work assistant for Zhengzhou Commodity Exchange.**
+
+Assist with knowledge queries, document preparation, data analysis, and everyday tasks.
+
+CZCE Agent is a fork of ZCode. These statements describe the product direction; the current capabilities and limits are listed below. The repository name and internal compatibility identifiers remain unchanged.
 
 This fork ships local Desktop only. Local Provider/API keys, Agent tools and recovery, user/workspace Skills, stdio/HTTP MCP and required authentication remain available. Web, updates, product accounts/subscriptions, marketplaces, sharing, telemetry, remote workspaces and phone control are disabled. Normal Agent shell, networking and browser tools remain available.
 
@@ -55,6 +61,16 @@ Set `ZCODE_DATA_BASE_DIR` to use a separate development data directory. For exam
 ```bash
 ZCODE_DATA_BASE_DIR="$HOME/.zcode-dev-home" pnpm dev:desktop:test
 ```
+
+To simulate a new user's first launch, quit the app and stop the current development process, then run:
+
+```bash
+mise run dev-first-run
+# Equivalent entry
+pnpm dev:desktop:first-run
+```
+
+Each invocation creates a fresh temporary user directory for settings, onboarding records, tasks/sessions and Electron storage, then starts the existing test environment. The terminal prints the directory; data is retained after exit for inspection. `mise run dev` remains unchanged. This simulates empty application data and does not reset system permissions or installed third-party tools. Setting only `ZCODE_DATA_BASE_DIR` does not isolate global settings or Electron storage.
 
 ### CLI Source Development
 

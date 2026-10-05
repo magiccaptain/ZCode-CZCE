@@ -2,34 +2,23 @@ import {
   Code2,
   ShieldCheck,
   PanelsTopLeft,
-  PenTool,
-  GraduationCap,
-  Video,
-  Store,
+  ClipboardList,
+  ChartNoAxesCombined,
+  UsersRound,
+  ArrowLeftRight,
+  Warehouse,
   Megaphone,
-  BriefcaseBusiness,
-  Rocket,
+  Wallet,
+  Landmark,
   Scale,
   Ellipsis,
   type LucideIcon,
 } from "lucide-react";
+import { ONBOARDING_WORK_DIRECTIONS, type OnboardingWorkDirection } from "@zcode/shared";
 
-export const occupations = [
-  "developer",
-  "independent",
-  "infrastructure",
-  "product",
-  "design",
-  "student",
-  "finance",
-  "creator",
-  "operations",
-  "marketing",
-  "legal",
-  "other",
-] as const;
+export const occupations = ONBOARDING_WORK_DIRECTIONS;
 
-export type OccupationValue = (typeof occupations)[number];
+export type OccupationValue = OnboardingWorkDirection;
 
 /** 步骤 2 模式选择用的图标：coding / office。 */
 export const modeOptionIcons = {
@@ -37,21 +26,22 @@ export const modeOptionIcons = {
   office: PanelsTopLeft,
 } as const;
 
-const occupationIcons = [
-  Code2,
-  Rocket,
-  ShieldCheck,
-  PanelsTopLeft,
-  PenTool,
-  GraduationCap,
-  BriefcaseBusiness,
-  Video,
-  Store,
-  Megaphone,
-  Scale,
-  Ellipsis,
-];
+const occupationIcons: Record<OccupationValue, LucideIcon> = {
+  administration: ClipboardList,
+  research: ChartNoAxesCombined,
+  market_service: Megaphone,
+  member_service: UsersRound,
+  trading_settlement: ArrowLeftRight,
+  delivery_warehousing: Warehouse,
+  risk_surveillance: ShieldCheck,
+  legal_audit: Scale,
+  technology_data: Code2,
+  finance_procurement: Wallet,
+  party_hr: Landmark,
+  other: Ellipsis,
+};
 
 export function getOccupationIcon(index: number): LucideIcon {
-  return occupationIcons[index] ?? Ellipsis;
+  const value = occupations[index];
+  return value ? occupationIcons[value] : Ellipsis;
 }
